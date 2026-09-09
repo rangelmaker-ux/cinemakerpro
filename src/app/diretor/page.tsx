@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import {
   Camera,
@@ -27,7 +27,7 @@ import { ChecklistModal } from '@/components/director/ChecklistModal';
 import { ShotPlanModal } from '@/components/director/ShotPlanModal';
 import { cn } from '@/lib/utils';
 
-export default function DirectorPage() {
+function DirectorContent() {
   const searchParams = useSearchParams();
   const clientId = searchParams.get('client_id');
   const isQuick = searchParams.get('quick') === 'true';
@@ -307,3 +307,19 @@ export default function DirectorPage() {
     </div>
   );
 }
+
+export default function DirectorPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex items-center justify-center p-12 text-slate-400 text-xs font-semibold">
+          <Sparkles className="w-4 h-4 text-brand-light animate-spin mr-2" />
+          <span>Iniciando Diretor de Gravação IA...</span>
+        </div>
+      }
+    >
+      <DirectorContent />
+    </Suspense>
+  );
+}
+
