@@ -421,14 +421,11 @@ function DirectorContent() {
       setIsScriptApproved(false);
       setStage('script_review');
 
-      const strategyHeader = newScript.creative_angle ? `💡 **Estratégia Escolhida: ${newScript.creative_angle}**\n\n` : '';
-      const justificationBody = newScript.creative_justification ? `*Por que essa direção:* ${newScript.creative_justification}\n\n` : '';
-
       const scriptResponse: ChatMessage = {
         id: `msg-${Date.now() + 1}`,
         sender: 'criador_roteiro',
         senderTitle: 'Criador de Roteiro',
-        text: `${strategyHeader}${justificationBody}Estruturei o roteiro narrativo abaixo com gancho de retenção nos primeiros 3 segundos, diálogos naturais em português falado (sem jargões ou clichês publicitários), e chamada para ação objetiva.\n\nDá uma olhada com calma. Você pode aprovar direto, pedir para calibrar o gancho/tom, ou editar qualquer linha:`,
+        text: `Estruturei o roteiro com gancho de retenção nos primeiros 3 segundos, falas em linguagem natural e chamada para ação objetiva.\n\nConfira o roteiro abaixo no card. Você pode aprovar direto, pedir ajustes ou editar qualquer fala:`,
         timestamp: new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
         stage: 'script_review',
         script: newScript,
@@ -510,7 +507,7 @@ function DirectorContent() {
         id: `msg-${Date.now()}`,
         sender: 'criador_roteiro',
         senderTitle: 'Criador de Roteiro',
-        text: `💡 **Nova Abordagem: ${alternativeScript.creative_angle || 'Ângulo Alternativo'}**\n\n${alternativeScript.creative_justification ? `*Por que essa direção:* ${alternativeScript.creative_justification}\n\n` : ''}Criei uma proposta de narrativa alternativa com um novo ângulo de abordagem estratégica. Confira o novo gancho e as cenas abaixo:`,
+        text: `Criei uma nova proposta de roteiro alternativa. Confira o novo gancho e as falas abaixo no card:`,
         timestamp: new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
         stage: 'script_review',
         script: alternativeScript,
@@ -785,550 +782,559 @@ function DirectorContent() {
         </div>
       </div>
 
-      {/* 3. GRID PRINCIPAL: MAPA 3D DO ESTÚDIO (7 cols) + ÁREA CONVERSACIONAL E AGENTES (5 cols) */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
-        {/* COLUNA DA ESQUERDA: MAPA DE ILUMINAÇÃO & POSICIONAMENTO 3D (Substitui o antigo preview de foto) */}
-        <div className="lg:col-span-7 space-y-3">
-          <Studio3DLightingMap
-            currentSetup={custom3DSetup}
-            isScriptApproved={isScriptApproved}
-            onUpdateSetup={setCustom3DSetup}
-            onOpenChat={() => setActiveTab('conversar')}
-            activeSceneName={currentScript?.scenes[0]?.sceneName || 'Cena 01'}
-          />
+      {/* 3. SELETOR DE ABAS PRINCIPAIS — CADA UM NO SEU CANTO */}
+      <div className="bg-[#111318] border border-white/[0.08] rounded-2xl p-1.5 shadow-md">
+        <div className="grid grid-cols-2 sm:grid-cols-5 gap-1.5 font-mono text-center">
+          {(
+            [
+              { id: 'conversar', label: 'Chat do Roteiro', icon: MessageSquare, desc: 'Criação & Falas' },
+              { id: 'diretor_geral', label: 'Diretor Geral', icon: Crosshair, desc: 'Visão Executiva' },
+              { id: 'cena', label: 'Diretor de Cena', icon: User, desc: 'Posição & Corpo' },
+              { id: 'fotografia', label: 'Fotografia & Luz', icon: Camera, desc: 'Mapa 3D & Kit' },
+              { id: 'takes', label: 'Plano de Takes', icon: Film, desc: 'Operação de Gravação' },
+            ] as const
+          ).map((tab) => {
+            const Icon = tab.icon;
+            const isActive = activeTab === tab.id;
+            const isLocked = !isScriptApproved && tab.id !== 'conversar';
 
-          <div className="flex items-center justify-between gap-2.5 text-xs">
-            <div className="flex items-center gap-2 text-[11px] font-mono text-zinc-400">
-              <span className="w-2 h-2 rounded-full bg-emerald-400" />
-              <span>Mapa 3D ativo: medições em metros e graus calculadas para montagem física</span>
+            return (
+              <button
+                key={tab.id}
+                type="button"
+                onClick={() => setActiveTab(tab.id)}
+                className={cn(
+                  'py-2.5 px-2 rounded-xl text-xs font-medium flex flex-col items-center gap-1 transition-all relative',
+                  isActive
+                    ? 'bg-white text-zinc-950 font-bold shadow-md'
+                    : isLocked
+                    ? 'text-zinc-500 hover:text-zinc-400 bg-white/[0.02]'
+                    : 'text-zinc-400 hover:text-white bg-white/[0.04] hover:bg-white/[0.08]'
+                )}
+              >
+                <div className="flex items-center gap-1.5">
+                  <Icon className="w-3.5 h-3.5" />
+                  <span className="text-xs font-semibold">{tab.label}</span>
+                </div>
+                <span className={cn('text-[9px] hidden sm:block', isActive ? 'text-zinc-600' : 'text-zinc-500')}>
+                  {tab.desc}
+                </span>
+                {isLocked && (
+                  <div
+                    className="absolute top-1.5 right-1.5 w-1.5 h-1.5 rounded-full bg-amber-500/80"
+                    title="Requer aprovação do roteiro"
+                  />
+                )}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* 4. CONTEÚDO EXCLUSIVO DA ABA ATIVA */}
+
+      {/* ABA 1: CHAT DO ROTEIRO (CHAT E ROTEIRO ISOLADOS, SEM MAPA 3D OU METADADOS DESNECESSÁRIOS) */}
+      {activeTab === 'conversar' && (
+        <div className="bg-[#111318] border border-white/[0.08] rounded-2xl p-4 sm:p-6 space-y-4 shadow-md max-w-4xl mx-auto w-full animate-fade-in">
+          {/* CABEÇALHO DO CHAT COM CONTROLE DE LIMPEZA E STATUS */}
+          <div className="flex items-center justify-between pb-3 border-b border-white/[0.08] text-xs">
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-mono text-zinc-300 font-semibold">Chat de Criação do Roteiro</span>
+              {activeSavedScriptId && (
+                <span className="bg-purple-500/20 text-purple-300 border border-purple-500/40 text-[10px] font-mono px-2.5 py-0.5 rounded-full flex items-center gap-1 font-semibold">
+                  <Bookmark className="w-2.5 h-2.5" />
+                  Roteiro Salvo em Pasta
+                </span>
+              )}
             </div>
 
             <button
               type="button"
-              onClick={() => setIsWhyOpen(true)}
-              className="py-2 px-3 bg-[#111318] hover:bg-zinc-800 text-zinc-300 hover:text-white font-medium rounded-xl border border-white/10 flex items-center gap-1.5 transition-colors shrink-0"
+              onClick={() => setConfirmClearOpen(true)}
+              className="py-1.5 px-3 rounded-xl bg-white/[0.04] hover:bg-red-500/15 text-zinc-400 hover:text-red-300 border border-white/10 hover:border-red-500/30 text-xs font-mono flex items-center gap-1.5 transition-colors"
+              title="Limpar mensagens e rascunhos temporários da conversa atual"
             >
-              <HelpCircle className="w-3.5 h-3.5 text-zinc-400" />
-              <span>Por quê?</span>
+              <RotateCcw className="w-3.5 h-3.5" />
+              <span>Limpar conversa</span>
             </button>
           </div>
-        </div>
 
-        {/* COLUNA DA DIREITA: ÁREA CONVERSACIONAL + OS 4 ESPECIALISTAS (5 cols) */}
-        <div className="lg:col-span-5 bg-[#111318] border border-white/[0.08] rounded-2xl p-4 sm:p-5 space-y-4">
-          {/* Seletor dos Especialistas de IA */}
-          <div className="grid grid-cols-5 gap-1 bg-black/40 p-1 rounded-xl border border-white/10 text-center font-mono">
-            {(
-              [
-                { id: 'conversar', label: 'Chat & Roteiro', icon: MessageSquare },
-                { id: 'diretor_geral', label: 'Geral', icon: Crosshair },
-                { id: 'cena', label: 'Cena', icon: User },
-                { id: 'fotografia', label: 'Foto', icon: Camera },
-                { id: 'takes', label: 'Takes', icon: Film },
-              ] as const
-            ).map((tab) => {
-              const Icon = tab.icon;
-              const isActive = activeTab === tab.id;
-              const isLocked = !isScriptApproved && tab.id !== 'conversar';
+          {/* HISTÓRICO DE MENSAGENS CONVERSACIONAIS */}
+          <div className="space-y-3 max-h-[420px] overflow-y-auto pr-1">
+            {messages.map((msg) => {
+              const isUser = msg.sender === 'user';
 
               return (
-                <button
-                  key={tab.id}
-                  type="button"
-                  onClick={() => setActiveTab(tab.id)}
+                <div
+                  key={msg.id}
                   className={cn(
-                    'py-2 px-1 rounded-lg text-xs font-medium flex flex-col items-center gap-1 transition-all relative',
-                    isActive
-                      ? 'bg-white text-zinc-950 font-bold shadow-md'
-                      : isLocked
-                      ? 'text-zinc-500 hover:text-zinc-400'
-                      : 'text-zinc-400 hover:text-zinc-200'
+                    'flex flex-col gap-1',
+                    isUser ? 'items-end' : 'items-start'
                   )}
                 >
-                  <Icon className="w-3.5 h-3.5" />
-                  <span className="text-[9px] tracking-tight">{tab.label}</span>
-                  {isLocked && (
-                    <div className="absolute top-1 right-1 w-1.5 h-1.5 rounded-full bg-amber-500/60" />
-                  )}
-                </button>
+                  <div className="flex items-center gap-1.5 text-[10px] font-mono text-zinc-500 px-1">
+                    {!isUser && (
+                      <div
+                        className={cn(
+                          'w-1.5 h-1.5 rounded-full',
+                          msg.sender === 'criador_roteiro' ? 'bg-purple-400' : 'bg-amber-400'
+                        )}
+                      />
+                    )}
+                    <span
+                      className={cn(
+                        msg.sender === 'criador_roteiro' ? 'text-purple-300 font-semibold' : ''
+                      )}
+                    >
+                      {msg.senderTitle}
+                    </span>
+                    <span>•</span>
+                    <span>{msg.timestamp}</span>
+                    {msg.isAudio && (
+                      <span className="bg-red-500/15 text-red-400 text-[9px] px-1 rounded flex items-center gap-1">
+                        <Mic className="w-2.5 h-2.5" /> Áudio
+                      </span>
+                    )}
+                  </div>
+
+                  <div
+                    className={cn(
+                      'p-3.5 rounded-2xl text-xs leading-relaxed max-w-[92%]',
+                      isUser
+                        ? 'bg-amber-500/15 border border-amber-500/30 text-zinc-100 rounded-tr-xs'
+                        : 'bg-black/40 border border-white/10 text-zinc-200 rounded-tl-xs'
+                    )}
+                  >
+                    <p>{msg.text}</p>
+
+                    {/* Ações sugeridas */}
+                    {msg.suggestedActions && (
+                      <div className="flex flex-wrap gap-1.5 mt-2.5 pt-2 border-t border-white/[0.06]">
+                        {msg.suggestedActions.map((action, i) => (
+                          <button
+                            key={i}
+                            type="button"
+                            onClick={() => {
+                              if (action.action.startsWith('send:')) {
+                                handleSendMessage(action.action.replace('send:', ''));
+                              } else if (action.action === 'example_barber') {
+                                handleSendMessage(
+                                  'Quero gravar um vídeo de 30 segundos para uma barbearia falando sobre cortes masculinos que estão em alta.'
+                                );
+                              } else if (action.action === 'example_testimonial') {
+                                handleSendMessage(
+                                  'Quero gravar um depoimento de cliente institucional de 45 segundos mostrando a transformação real e a satisfação com nosso serviço.'
+                                );
+                              } else if (action.action === 'example_sales') {
+                                handleSendMessage(
+                                  'Quero gravar uma apresentação comercial direta de 30 segundos para atrair novos clientes com foco em resultado rápido.'
+                                );
+                              }
+                            }}
+                            className="py-1 px-2.5 bg-white/[0.04] hover:bg-white/[0.08] border border-white/10 rounded-lg text-[11px] font-mono text-zinc-300 hover:text-white transition-colors"
+                          >
+                            {action.label}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
               );
             })}
+
+            {isThinking && (
+              <div className="flex items-center gap-2 text-xs font-mono text-amber-400 bg-amber-500/10 border border-amber-500/20 p-2.5 rounded-xl animate-pulse">
+                <div className="w-3 h-3 rounded-full border-2 border-amber-400 border-t-transparent animate-spin" />
+                <span>A equipe de IA está estruturando sua resposta...</span>
+              </div>
+            )}
+
+            <div ref={chatBottomRef} />
           </div>
 
-          {/* ABA 1: CONVERSA / ROTEIRO (MÁQUINA CONVERSACIONAL DE IA) */}
-          {activeTab === 'conversar' && (
-            <div className="space-y-4 animate-fade-in">
-              {/* CABEÇALHO DO CHAT COM CONTROLE DE LIMPEZA E STATUS */}
-              <div className="flex items-center justify-between pb-2.5 border-b border-white/[0.08] text-xs">
+          {/* CARD DE REVISÃO E APROVAÇÃO DO ROTEIRO (ROTEIRO LIMPO) */}
+          {currentScript && (
+            <div className="pt-2">
+              <ScriptReviewCard
+                script={currentScript}
+                isApproved={isScriptApproved}
+                onApprove={handleApproveScript}
+                onRegenerate={handleRegenerateScript}
+                onUpdateScript={handleUpdateScript}
+                onRequestAdjustment={(prompt) => handleSendMessage(prompt)}
+                onSaveToLibrary={handleOpenSaveModal}
+                isSavedInLibrary={Boolean(activeSavedScriptId || savedScripts.some((s) => s.title === activeScriptProject?.title))}
+                versions={activeScriptProject?.versions || []}
+                currentVersionNumber={(activeScriptProject?.versions?.length || 0) + 1}
+                onSelectVersion={(versionScript) => setCurrentScript(versionScript)}
+              />
+            </div>
+          )}
+
+          {/* BARRA DE ENTRADA CONVERSACIONAL: VOZ (ÁUDIO) OU TEXTO */}
+          <div className="pt-2 border-t border-white/[0.08]">
+            <VoiceInput
+              onSendMessage={(text, isAudio) => handleSendMessage(text, isAudio)}
+              disabled={isThinking}
+              placeholder={
+                currentScript
+                  ? 'Peça um ajuste (ex: muda o gancho, tom mais engraçado) ou fale "Aprovado"...'
+                  : 'Me conta o que você precisa gravar hoje (fale por áudio ou digite)...'
+              }
+            />
+          </div>
+        </div>
+      )}
+
+      {/* ABA 2: DIRETOR GERAL */}
+      {activeTab === 'diretor_geral' && (
+        <div className="bg-[#111318] border border-white/[0.08] rounded-2xl p-4 sm:p-6 space-y-4 shadow-md max-w-4xl mx-auto w-full animate-fade-in">
+          {!isScriptApproved || !teamOutput ? (
+            <div className="bg-black/30 border border-white/10 rounded-2xl p-8 text-center space-y-3">
+              <Lock className="w-8 h-8 text-amber-400 mx-auto" />
+              <h4 className="font-bold text-white text-xs uppercase font-mono">
+                Aguardando Aprovação do Roteiro
+              </h4>
+              <p className="text-zinc-400 text-xs max-w-sm mx-auto leading-relaxed">
+                O Diretor Geral sintetiza a visão executiva e alinha a equipe técnica após você aprovar a narrativa no Chat do Roteiro.
+              </p>
+              <button
+                type="button"
+                onClick={() => setActiveTab('conversar')}
+                className="py-2.5 px-5 bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 rounded-xl text-xs font-semibold transition-colors"
+              >
+                Abrir Chat do Roteiro
+              </button>
+            </div>
+          ) : (
+            <div className="space-y-4 text-xs">
+              <div className="flex items-center justify-between pb-3 border-b border-white/[0.06]">
                 <div className="flex items-center gap-2">
-                  <span className="text-[11px] font-mono text-zinc-400">Conversa com Criador de Roteiro</span>
-                  {activeSavedScriptId && (
-                    <span className="bg-purple-500/20 text-purple-300 border border-purple-500/40 text-[10px] font-mono px-2 py-0.5 rounded-full flex items-center gap-1 font-semibold">
-                      <Bookmark className="w-2.5 h-2.5" />
-                      Roteiro Permanente Ativo
-                    </span>
-                  )}
+                  <div className="w-2.5 h-2.5 rounded-full bg-amber-400" />
+                  <span className="font-bold text-white uppercase text-xs font-mono">
+                    DIRETOR GERAL (Decisão Criativa & Executiva)
+                  </span>
+                </div>
+                <span className="text-[10px] font-mono text-amber-400 bg-amber-500/10 border border-amber-500/25 px-2.5 py-0.5 rounded font-semibold">
+                  LÍDER DA PRODUÇÃO
+                </span>
+              </div>
+
+              {/* Resumo Executivo */}
+              <div className="bg-black/30 p-4 rounded-xl border border-white/[0.06] space-y-2">
+                <span className="text-[10px] font-mono font-semibold uppercase text-zinc-400 block">
+                  Síntese da Produção:
+                </span>
+                <p className="text-zinc-200 text-xs leading-relaxed">
+                  {teamOutput.creative_direction.executive_summary}
+                </p>
+              </div>
+
+              {/* Teses dos Especialistas */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div className="bg-black/20 p-4 rounded-xl border border-white/[0.05] space-y-1.5">
+                  <span className="text-[10px] font-mono text-purple-400 font-semibold uppercase block">
+                    📖 Tese Narrativa (Roteiro):
+                  </span>
+                  <p className="text-zinc-300 text-xs leading-relaxed">
+                    {teamOutput.creative_direction.narrative_thesis}
+                  </p>
+                </div>
+
+                <div className="bg-black/20 p-4 rounded-xl border border-white/[0.05] space-y-1.5">
+                  <span className="text-[10px] font-mono text-blue-400 font-semibold uppercase block">
+                    🎥 Tese Visual (Fotografia & Luz):
+                  </span>
+                  <p className="text-zinc-300 text-xs leading-relaxed">
+                    {teamOutput.creative_direction.visual_thesis}
+                  </p>
+                </div>
+              </div>
+
+              {/* Conflitos Resolvidos */}
+              {teamOutput.conflict_resolutions.length > 0 && (
+                <div className="bg-amber-500/[0.04] p-4 rounded-xl border border-amber-500/20 space-y-2">
+                  <span className="text-[10px] font-mono font-bold uppercase text-amber-400 flex items-center gap-1.5">
+                    <ShieldAlert className="w-3.5 h-3.5 text-amber-400" />
+                    <span>Conflito Físico Resolvido pelo Diretor Geral:</span>
+                  </span>
+                  {teamOutput.conflict_resolutions.map((c, i) => (
+                    <div key={i} className="text-xs text-zinc-300 space-y-1">
+                      <p className="text-amber-200 font-medium">• {c.conflict}</p>
+                      <p className="text-zinc-400 pl-3">↳ Solução: {c.resolution}</p>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ABA 3: DIRETOR DE CENA (SOMENTE AS INFORMAÇÕES DE CENA) */}
+      {activeTab === 'cena' && (
+        <div className="bg-[#111318] border border-white/[0.08] rounded-2xl p-4 sm:p-6 space-y-4 shadow-md max-w-4xl mx-auto w-full animate-fade-in">
+          {!isScriptApproved || !teamOutput ? (
+            <div className="bg-black/30 border border-white/10 rounded-2xl p-8 text-center space-y-3">
+              <Lock className="w-8 h-8 text-blue-400 mx-auto" />
+              <h4 className="font-bold text-white text-xs uppercase font-mono">
+                Diretor de Cena Bloqueado
+              </h4>
+              <p className="text-zinc-400 text-xs max-w-sm mx-auto leading-relaxed">
+                O Diretor de Cena precisa do roteiro aprovado para posicionar os atores a 1,5m da parede e calcular a movimentação.
+              </p>
+              <button
+                type="button"
+                onClick={() => setActiveTab('conversar')}
+                className="py-2.5 px-5 bg-blue-500/20 hover:bg-blue-500/30 text-blue-300 border border-blue-500/40 rounded-xl text-xs font-semibold transition-colors"
+              >
+                Aprovar Roteiro no Chat
+              </button>
+            </div>
+          ) : (
+            <div className="space-y-4 text-xs">
+              <div className="flex items-center justify-between pb-3 border-b border-white/[0.06]">
+                <div className="flex items-center gap-2">
+                  <div className="w-2.5 h-2.5 rounded-full bg-blue-400" />
+                  <span className="font-bold text-white uppercase text-xs font-mono">
+                    DIRETOR DE CENA (Corpo, Pessoas & Bloqueio)
+                  </span>
+                </div>
+                <span className="text-[10px] font-mono text-blue-400 bg-blue-500/10 border border-blue-500/25 px-2.5 py-0.5 rounded font-semibold">
+                  ATUAÇÃO NO SET
+                </span>
+              </div>
+
+              {/* Posicionamento Físico & Recuo de 1,5m */}
+              <div className="bg-black/30 p-4 rounded-xl border border-white/[0.06] space-y-2">
+                <div className="flex items-center justify-between font-mono text-[10px] text-zinc-400">
+                  <span className="text-blue-400 font-bold uppercase">Posição no Espaço</span>
+                  <span className="text-emerald-400 font-bold bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20">
+                    1,5m DA PAREDE DE FUNDO
+                  </span>
+                </div>
+                <p className="text-zinc-200 text-xs leading-relaxed">
+                  {teamOutput.scene_direction.subject_position.description}
+                </p>
+              </div>
+
+              {/* Orientação Corporal & Linha dos Olhos */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="bg-black/30 p-4 rounded-xl border border-white/[0.06] space-y-1.5">
+                  <span className="text-[10px] font-mono text-zinc-500 uppercase font-semibold block">Orientação Corporal</span>
+                  <p className="text-zinc-200 text-xs leading-relaxed">
+                    {teamOutput.scene_direction.body_orientation}
+                  </p>
+                </div>
+
+                <div className="bg-black/30 p-4 rounded-xl border border-white/[0.06] space-y-1.5">
+                  <span className="text-[10px] font-mono text-zinc-500 uppercase font-semibold block">Linha de Olhar</span>
+                  <p className="text-zinc-200 text-xs leading-relaxed">
+                    {teamOutput.scene_direction.eye_line}
+                  </p>
+                </div>
+              </div>
+
+              {/* Movimentação e Bloqueio */}
+              <div className="bg-black/30 p-4 rounded-xl border border-white/[0.06] space-y-2">
+                <span className="text-[10px] font-mono font-semibold uppercase text-zinc-400 block">
+                  Movimentação & Bloqueio Cênico:
+                </span>
+                <p className="text-zinc-300 text-xs leading-relaxed">
+                  • Início da Cena: {teamOutput.scene_direction.movement.start_action}
+                </p>
+                <p className="text-zinc-300 text-xs leading-relaxed">
+                  • Fluxo de Movimento: {teamOutput.scene_direction.movement.motion_flow}
+                </p>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ABA 4: FOTOGRAFIA & LUZ (MAPA 3D DEDICADO AQUI) */}
+      {activeTab === 'fotografia' && (
+        <div className="space-y-4 max-w-5xl mx-auto w-full animate-fade-in">
+          {!isScriptApproved || !teamOutput ? (
+            <div className="bg-[#111318] border border-white/10 rounded-2xl p-8 text-center space-y-3">
+              <Lock className="w-8 h-8 text-amber-400 mx-auto" />
+              <h4 className="font-bold text-white text-xs uppercase font-mono">
+                Diretor de Fotografia Bloqueado
+              </h4>
+              <p className="text-zinc-400 text-xs max-w-sm mx-auto leading-relaxed">
+                O Fotógrafo selecionará as lentes do seu kit real e montará o mapa de luz a 45° assim que o roteiro for aprovado no Chat do Roteiro.
+              </p>
+              <button
+                type="button"
+                onClick={() => setActiveTab('conversar')}
+                className="py-2.5 px-5 bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 rounded-xl text-xs font-semibold transition-colors"
+              >
+                Aprovar Roteiro no Chat
+              </button>
+            </div>
+          ) : (
+            <>
+              {/* CABEÇALHO DO FOTÓGRAFO */}
+              <div className="bg-[#111318] border border-white/[0.08] rounded-2xl p-4 flex items-center justify-between">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-2.5 h-2.5 rounded-full bg-amber-400" />
+                  <span className="font-bold text-white uppercase text-xs font-mono">
+                    DIRETOR DE FOTOGRAFIA (Mapa 3D de Iluminação & Câmera)
+                  </span>
+                </div>
+                <span className="text-[10px] font-mono text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2.5 py-0.5 rounded font-semibold">
+                  {teamOutput.cinematography_direction.lens.source === 'equipamento_proprio' ? 'SEU KIT REAL' : 'RECOMENDADO'}
+                </span>
+              </div>
+
+              {/* MAPA 3D DO ESTÚDIO DEDICADO NESTA ABA */}
+              <Studio3DLightingMap
+                currentSetup={custom3DSetup}
+                isScriptApproved={isScriptApproved}
+                onUpdateSetup={setCustom3DSetup}
+                onOpenChat={() => setActiveTab('conversar')}
+                activeSceneName={currentScript?.scenes[0]?.sceneName || 'Cena 01'}
+              />
+
+              {/* DETALHES TÉCNICOS: LENTES E ILUMINAÇÃO */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* Lente Escolhida do Kit */}
+                <div className="bg-[#111318] border border-white/[0.08] p-4 rounded-2xl space-y-2">
+                  <div className="flex items-center justify-between font-mono text-[10px] text-zinc-500">
+                    <span className="uppercase font-semibold">Lente do seu Kit</span>
+                    <span className="text-amber-400 font-bold">{teamOutput.cinematography_direction.lens.focal_length_mm}mm</span>
+                  </div>
+                  <h4 className="font-semibold text-white text-sm">
+                    {teamOutput.cinematography_direction.lens.model}
+                  </h4>
+                  <p className="text-xs text-zinc-300 leading-relaxed">
+                    {teamOutput.cinematography_direction.lens.choice_reason}
+                  </p>
+                </div>
+
+                {/* Iluminação Principal a 45° */}
+                <div className="bg-[#111318] border border-white/[0.08] p-4 rounded-2xl space-y-2">
+                  <div className="flex items-center justify-between font-mono text-[10px] text-zinc-500">
+                    <span className="uppercase font-semibold">Luz Principal (Key Light)</span>
+                    <span className="text-amber-400 font-bold">ÂNGULO 45°</span>
+                  </div>
+                  <h4 className="font-medium text-white text-xs">
+                    {teamOutput.cinematography_direction.lighting.key_light.equipment_used}
+                  </h4>
+                  <p className="text-xs text-zinc-400 leading-relaxed">
+                    Altura {teamOutput.cinematography_direction.lighting.key_light.height} com {teamOutput.cinematography_direction.lighting.key_light.modifier}.
+                  </p>
+                  <p className="text-[10px] font-mono text-zinc-400">
+                    Distância da parede: {teamOutput.cinematography_direction.lighting.key_light.distance_to_wall_m}m (Sombra suave calculada).
+                  </p>
+                </div>
+              </div>
+
+              {/* Barra de Ação & Por Quê */}
+              <div className="flex items-center justify-between bg-[#111318] border border-white/[0.08] p-3 rounded-2xl text-xs">
+                <div className="flex items-center gap-2 text-xs font-mono text-zinc-400">
+                  <span className="w-2 h-2 rounded-full bg-emerald-400" />
+                  <span>Posições em metros e graus calculadas para montagem física no set</span>
                 </div>
 
                 <button
                   type="button"
-                  onClick={() => setConfirmClearOpen(true)}
-                  className="py-1 px-2.5 rounded-lg bg-white/[0.04] hover:bg-red-500/15 text-zinc-400 hover:text-red-300 border border-white/10 hover:border-red-500/30 text-[11px] font-mono flex items-center gap-1.5 transition-colors"
-                  title="Limpar mensagens e rascunhos temporários da conversa atual"
+                  onClick={() => setIsWhyOpen(true)}
+                  className="py-2 px-3.5 bg-white/[0.06] hover:bg-white/[0.1] text-zinc-200 hover:text-white font-medium rounded-xl border border-white/10 flex items-center gap-1.5 transition-colors"
                 >
-                  <RotateCcw className="w-3 h-3" />
-                  <span>Limpar conversa</span>
+                  <HelpCircle className="w-3.5 h-3.5 text-zinc-400" />
+                  <span>Por quê?</span>
                 </button>
               </div>
+            </>
+          )}
+        </div>
+      )}
 
-              {/* HISTÓRICO DE MENSAGENS CONVERSACIONAIS */}
-              <div className="space-y-3 max-h-[350px] overflow-y-auto pr-1">
-                {messages.map((msg) => {
-                  const isUser = msg.sender === 'user';
+      {/* ABA 5: PLANO DE TAKES (SOMENTE OS TAKES) */}
+      {activeTab === 'takes' && (
+        <div className="bg-[#111318] border border-white/[0.08] rounded-2xl p-4 sm:p-6 space-y-4 shadow-md max-w-4xl mx-auto w-full animate-fade-in">
+          {!isScriptApproved || !teamOutput ? (
+            <div className="bg-black/30 border border-white/10 rounded-2xl p-8 text-center space-y-3">
+              <Lock className="w-8 h-8 text-purple-400 mx-auto" />
+              <h4 className="font-bold text-white text-xs uppercase font-mono">
+                Plano de Takes Aguardando Roteiro
+              </h4>
+              <p className="text-zinc-400 text-xs max-w-sm mx-auto leading-relaxed">
+                Os takes operacionais são gerados a partir das cenas do roteiro aprovado no Chat do Roteiro.
+              </p>
+              <button
+                type="button"
+                onClick={() => setActiveTab('conversar')}
+                className="py-2.5 px-5 bg-purple-500/20 hover:bg-purple-500/30 text-purple-300 border border-purple-500/40 rounded-xl text-xs font-semibold transition-colors"
+              >
+                Aprovar Roteiro no Chat
+              </button>
+            </div>
+          ) : (
+            <div className="space-y-4 text-xs">
+              <div className="flex items-center justify-between pb-3 border-b border-white/[0.06]">
+                <div className="flex items-center gap-2">
+                  <div className="w-2.5 h-2.5 rounded-full bg-purple-400" />
+                  <span className="font-bold text-white uppercase text-xs font-mono">
+                    Plano Operacional de Takes
+                  </span>
+                </div>
+                <span className="text-xs font-mono text-zinc-300 bg-white/[0.04] px-3 py-1 rounded-xl border border-white/10">
+                  <strong className="text-emerald-400">{doneTakes.length}</strong> de <strong>{teamOutput.takes.length}</strong> gravados
+                </span>
+              </div>
+
+              <div className="space-y-2.5 max-h-[500px] overflow-y-auto pr-1">
+                {teamOutput.takes.map((take) => {
+                  const isDone = doneTakes.includes(take.sceneNumber);
 
                   return (
                     <div
-                      key={msg.id}
+                      key={take.sceneNumber}
+                      onClick={() => toggleTake(take.sceneNumber)}
                       className={cn(
-                        'flex flex-col gap-1',
-                        isUser ? 'items-end' : 'items-start'
+                        'p-4 rounded-xl border transition-all cursor-pointer select-none',
+                        isDone
+                          ? 'bg-emerald-500/[0.06] border-emerald-500/30'
+                          : 'bg-black/30 border-white/[0.06] hover:border-white/20'
                       )}
                     >
-                      <div className="flex items-center gap-1.5 text-[10px] font-mono text-zinc-500 px-1">
-                        {!isUser && (
-                          <div
-                            className={cn(
-                              'w-1.5 h-1.5 rounded-full',
-                              msg.sender === 'criador_roteiro' ? 'bg-purple-400' : 'bg-amber-400'
-                            )}
-                          />
-                        )}
-                        <span
+                      <div className="flex items-center justify-between mb-1.5">
+                        <span className="text-[10px] font-mono font-bold text-zinc-400 uppercase">
+                          CENA 0{take.sceneNumber} • {take.framing}
+                        </span>
+                        <div
                           className={cn(
-                            msg.sender === 'criador_roteiro' ? 'text-purple-300 font-semibold' : ''
+                            'w-5 h-5 rounded-lg flex items-center justify-center text-xs transition-colors',
+                            isDone ? 'bg-emerald-400 text-zinc-950' : 'border border-zinc-600 hover:border-zinc-400'
                           )}
                         >
-                          {msg.senderTitle}
-                        </span>
-                        <span>•</span>
-                        <span>{msg.timestamp}</span>
-                        {msg.isAudio && (
-                          <span className="bg-red-500/15 text-red-400 text-[9px] px-1 rounded flex items-center gap-1">
-                            <Mic className="w-2.5 h-2.5" /> Áudio
-                          </span>
-                        )}
+                          {isDone && <CheckCircle2 className="w-3.5 h-3.5 stroke-[3]" />}
+                        </div>
                       </div>
 
-                      <div
+                      <h4
                         className={cn(
-                          'p-3 rounded-2xl text-xs leading-relaxed max-w-[92%]',
-                          isUser
-                            ? 'bg-amber-500/15 border border-amber-500/30 text-zinc-100 rounded-tr-xs'
-                            : 'bg-black/40 border border-white/10 text-zinc-200 rounded-tl-xs'
+                          'font-semibold text-white text-xs mb-1',
+                          isDone && 'line-through text-zinc-500'
                         )}
                       >
-                        <p>{msg.text}</p>
+                        {take.title}
+                      </h4>
 
-                        {/* Ações sugeridas */}
-                        {msg.suggestedActions && (
-                          <div className="flex flex-wrap gap-1.5 mt-2.5 pt-2 border-t border-white/[0.06]">
-                            {msg.suggestedActions.map((action, i) => (
-                              <button
-                                key={i}
-                                type="button"
-                                onClick={() => {
-                                  if (action.action.startsWith('send:')) {
-                                    handleSendMessage(action.action.replace('send:', ''));
-                                  } else if (action.action === 'example_barber') {
-                                    handleSendMessage(
-                                      'Quero gravar um vídeo de 30 segundos para uma barbearia falando sobre cortes masculinos que estão em alta.'
-                                    );
-                                  } else if (action.action === 'example_testimonial') {
-                                    handleSendMessage(
-                                      'Quero gravar um depoimento de cliente institucional de 45 segundos mostrando a transformação real e a satisfação com nosso serviço.'
-                                    );
-                                  } else if (action.action === 'example_sales') {
-                                    handleSendMessage(
-                                      'Quero gravar uma apresentação comercial direta de 30 segundos para atrair novos clientes com foco em resultado rápido.'
-                                    );
-                                  }
-                                }}
-                                className="py-1 px-2.5 bg-white/[0.04] hover:bg-white/[0.08] border border-white/10 rounded-lg text-[11px] font-mono text-zinc-300 hover:text-white transition-colors"
-                              >
-                                {action.label}
-                              </button>
-                            ))}
-                          </div>
-                        )}
-                      </div>
+                      <p className="text-xs text-zinc-400 leading-relaxed">
+                        {take.description}
+                      </p>
                     </div>
                   );
                 })}
-
-                {isThinking && (
-                  <div className="flex items-center gap-2 text-xs font-mono text-amber-400 bg-amber-500/10 border border-amber-500/20 p-2.5 rounded-xl animate-pulse">
-                    <div className="w-3 h-3 rounded-full border-2 border-amber-400 border-t-transparent animate-spin" />
-                    <span>A equipe de IA está estruturando sua resposta...</span>
-                  </div>
-                )}
-
-                <div ref={chatBottomRef} />
               </div>
-
-              {/* CARD DE REVISÃO E APROVAÇÃO DO ROTEIRO (APARECE QUANDO HOUVER ROTEIRO) */}
-              {currentScript && (
-                <div className="pt-2">
-                  <ScriptReviewCard
-                    script={currentScript}
-                    isApproved={isScriptApproved}
-                    onApprove={handleApproveScript}
-                    onRegenerate={handleRegenerateScript}
-                    onUpdateScript={handleUpdateScript}
-                    onRequestAdjustment={(prompt) => handleSendMessage(prompt)}
-                    onSaveToLibrary={handleOpenSaveModal}
-                    isSavedInLibrary={Boolean(activeSavedScriptId || savedScripts.some((s) => s.title === activeScriptProject?.title))}
-                    versions={activeScriptProject?.versions || []}
-                    currentVersionNumber={(activeScriptProject?.versions?.length || 0) + 1}
-                    onSelectVersion={(versionScript) => setCurrentScript(versionScript)}
-                  />
-                </div>
-              )}
-
-              {/* BARRA DE ENTRADA CONVERSACIONAL: VOZ (ÁUDIO) OU TEXTO */}
-              <div className="pt-2 border-t border-white/[0.08]">
-                <VoiceInput
-                  onSendMessage={(text, isAudio) => handleSendMessage(text, isAudio)}
-                  disabled={isThinking}
-                  placeholder={
-                    currentScript
-                      ? 'Peça um ajuste (ex: muda o gancho, tom mais engraçado) ou fale "Aprovado"...'
-                      : 'Me conta o que você precisa gravar hoje (fale por áudio ou digite)...'
-                  }
-                />
-              </div>
-            </div>
-          )}
-
-          {/* ABA 2: DIRETOR GERAL */}
-          {activeTab === 'diretor_geral' && (
-            <div className="space-y-3.5 text-xs animate-fade-in">
-              {!isScriptApproved || !teamOutput ? (
-                <div className="bg-black/30 border border-white/10 rounded-xl p-6 text-center space-y-3">
-                  <Lock className="w-8 h-8 text-amber-400 mx-auto" />
-                  <h4 className="font-bold text-white text-xs uppercase font-mono">
-                    Aguardando Aprovação do Roteiro
-                  </h4>
-                  <p className="text-zinc-400 text-xs max-w-sm mx-auto leading-relaxed">
-                    O Diretor Geral sintetiza a visão executiva e alinha a equipe técnica após você aprovar a narrativa.
-                  </p>
-                  <button
-                    type="button"
-                    onClick={() => setActiveTab('conversar')}
-                    className="py-2 px-4 bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 rounded-xl text-xs font-semibold"
-                  >
-                    Abrir Chat do Roteiro
-                  </button>
-                </div>
-              ) : (
-                <>
-                  <div className="flex items-center justify-between pb-2 border-b border-white/[0.06]">
-                    <div className="flex items-center gap-2">
-                      <div className="w-2 h-2 rounded-full bg-amber-400" />
-                      <span className="font-bold text-white uppercase text-[11px] font-mono">
-                        DIRETOR GERAL (Decisão Criativa)
-                      </span>
-                    </div>
-                    <span className="text-[10px] font-mono text-amber-400 bg-amber-500/10 border border-amber-500/25 px-2 py-0.5 rounded">
-                      LÍDER DA EQUIPE
-                    </span>
-                  </div>
-
-                  {/* Resumo Executivo */}
-                  <div className="bg-black/30 p-3.5 rounded-xl border border-white/[0.06] space-y-1.5">
-                    <span className="text-[10px] font-mono font-semibold uppercase text-zinc-400 block">
-                      Síntese da Produção:
-                    </span>
-                    <p className="text-zinc-200 text-xs leading-relaxed">
-                      {teamOutput.creative_direction.executive_summary}
-                    </p>
-                  </div>
-
-                  {/* Teses dos Especialistas */}
-                  <div className="space-y-2">
-                    <div className="bg-black/20 p-3 rounded-xl border border-white/[0.05] space-y-1">
-                      <span className="text-[10px] font-mono text-purple-400 font-semibold uppercase block">
-                        📖 Tese Narrativa (Roteiro):
-                      </span>
-                      <p className="text-zinc-300 text-[11px] leading-relaxed">
-                        {teamOutput.creative_direction.narrative_thesis}
-                      </p>
-                    </div>
-
-                    <div className="bg-black/20 p-3 rounded-xl border border-white/[0.05] space-y-1">
-                      <span className="text-[10px] font-mono text-blue-400 font-semibold uppercase block">
-                        🎥 Tese Visual (Fotografia & Iluminação):
-                      </span>
-                      <p className="text-zinc-300 text-[11px] leading-relaxed">
-                        {teamOutput.creative_direction.visual_thesis}
-                      </p>
-                    </div>
-                  </div>
-
-                  {/* Conflitos Resolvidos */}
-                  {teamOutput.conflict_resolutions.length > 0 && (
-                    <div className="bg-amber-500/[0.04] p-3 rounded-xl border border-amber-500/20 space-y-1.5">
-                      <span className="text-[10px] font-mono font-bold uppercase text-amber-400 flex items-center gap-1.5">
-                        <ShieldAlert className="w-3.5 h-3.5 text-amber-400" />
-                        <span>Conflito Físico Resolvido pelo Diretor Geral:</span>
-                      </span>
-                      {teamOutput.conflict_resolutions.map((c, i) => (
-                        <div key={i} className="text-[11px] text-zinc-300 space-y-0.5">
-                          <p className="text-amber-200/90 font-medium">• {c.conflict}</p>
-                          <p className="text-zinc-400 pl-3">↳ Solução: {c.resolution}</p>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </>
-              )}
-            </div>
-          )}
-
-          {/* ABA 3: DIRETOR DE CENA */}
-          {activeTab === 'cena' && (
-            <div className="space-y-3.5 text-xs animate-fade-in">
-              {!isScriptApproved || !teamOutput ? (
-                <div className="bg-black/30 border border-white/10 rounded-xl p-6 text-center space-y-3">
-                  <Lock className="w-8 h-8 text-blue-400 mx-auto" />
-                  <h4 className="font-bold text-white text-xs uppercase font-mono">
-                    Diretor de Cena Bloqueado
-                  </h4>
-                  <p className="text-zinc-400 text-xs max-w-sm mx-auto leading-relaxed">
-                    O Diretor de Cena precisa do roteiro aprovado para posicionar os atores a 1,5m da parede e calcular a movimentação.
-                  </p>
-                  <button
-                    type="button"
-                    onClick={() => setActiveTab('conversar')}
-                    className="py-2 px-4 bg-blue-500/20 hover:bg-blue-500/30 text-blue-300 border border-blue-500/40 rounded-xl text-xs font-semibold"
-                  >
-                    Aprovar Roteiro no Chat
-                  </button>
-                </div>
-              ) : (
-                <>
-                  <div className="flex items-center justify-between pb-2 border-b border-white/[0.06]">
-                    <div className="flex items-center gap-2">
-                      <div className="w-2 h-2 rounded-full bg-blue-400" />
-                      <span className="font-bold text-white uppercase text-[11px] font-mono">
-                        DIRETOR DE CENA (Corpo & Pessoas)
-                      </span>
-                    </div>
-                    <span className="text-[10px] font-mono text-blue-400 bg-blue-500/10 border border-blue-500/25 px-2 py-0.5 rounded">
-                      ATUAÇÃO NO SET
-                    </span>
-                  </div>
-
-                  {/* Posicionamento Físico & Recuo de 1,5m */}
-                  <div className="bg-black/30 p-3.5 rounded-xl border border-white/[0.06] space-y-2">
-                    <div className="flex items-center justify-between font-mono text-[10px] text-zinc-400">
-                      <span className="text-blue-400 font-semibold">POSIÇÃO NO ESPAÇO</span>
-                      <span className="text-emerald-400 font-bold">1,5m DA PAREDE</span>
-                    </div>
-                    <p className="text-zinc-200 text-xs leading-relaxed">
-                      {teamOutput.scene_direction.subject_position.description}
-                    </p>
-                  </div>
-
-                  {/* Orientação Corporal & Linha dos Olhos */}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                    <div className="bg-black/30 p-3 rounded-xl border border-white/[0.06] space-y-1">
-                      <span className="text-[10px] font-mono text-zinc-500 uppercase block">Orientação Corporal</span>
-                      <p className="text-zinc-200 text-[11px] leading-relaxed">
-                        {teamOutput.scene_direction.body_orientation}
-                      </p>
-                    </div>
-
-                    <div className="bg-black/30 p-3 rounded-xl border border-white/[0.06] space-y-1">
-                      <span className="text-[10px] font-mono text-zinc-500 uppercase block">Linha de Olhar</span>
-                      <p className="text-zinc-200 text-[11px] leading-relaxed">
-                        {teamOutput.scene_direction.eye_line}
-                      </p>
-                    </div>
-                  </div>
-
-                  {/* Movimentação e Bloqueio */}
-                  <div className="bg-black/30 p-3.5 rounded-xl border border-white/[0.06] space-y-2">
-                    <span className="text-[10px] font-mono font-semibold uppercase text-zinc-400 block">
-                      Movimentação & Bloqueio:
-                    </span>
-                    <p className="text-zinc-300 text-[11px] leading-relaxed">
-                      • Início: {teamOutput.scene_direction.movement.start_action}
-                    </p>
-                    <p className="text-zinc-300 text-[11px] leading-relaxed">
-                      • Fluxo: {teamOutput.scene_direction.movement.motion_flow}
-                    </p>
-                  </div>
-                </>
-              )}
-            </div>
-          )}
-
-          {/* ABA 4: DIRETOR DE FOTOGRAFIA */}
-          {activeTab === 'fotografia' && (
-            <div className="space-y-3.5 text-xs animate-fade-in">
-              {!isScriptApproved || !teamOutput ? (
-                <div className="bg-black/30 border border-white/10 rounded-xl p-6 text-center space-y-3">
-                  <Lock className="w-8 h-8 text-amber-400 mx-auto" />
-                  <h4 className="font-bold text-white text-xs uppercase font-mono">
-                    Diretor de Fotografia Bloqueado
-                  </h4>
-                  <p className="text-zinc-400 text-xs max-w-sm mx-auto leading-relaxed">
-                    O Fotógrafo selecionará as lentes do seu kit real e montará o mapa de luz a 45° assim que o roteiro for aprovado.
-                  </p>
-                  <button
-                    type="button"
-                    onClick={() => setActiveTab('conversar')}
-                    className="py-2 px-4 bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 rounded-xl text-xs font-semibold"
-                  >
-                    Aprovar Roteiro no Chat
-                  </button>
-                </div>
-              ) : (
-                <>
-                  <div className="flex items-center justify-between pb-2 border-b border-white/[0.06]">
-                    <div className="flex items-center gap-2">
-                      <div className="w-2 h-2 rounded-full bg-amber-400" />
-                      <span className="font-bold text-white uppercase text-[11px] font-mono">
-                        DIRETOR DE FOTOGRAFIA (Óptica & Luz)
-                      </span>
-                    </div>
-                    <span className="text-[10px] font-mono text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded">
-                      {teamOutput.cinematography_direction.lens.source === 'equipamento_proprio' ? 'SEU KIT REAL' : 'RECOMENDADO'}
-                    </span>
-                  </div>
-
-                  {/* Lente Escolhida do Kit */}
-                  <div className="bg-black/30 p-3.5 rounded-xl border border-white/[0.06] space-y-2">
-                    <div className="flex items-center justify-between font-mono text-[10px] text-zinc-500">
-                      <span>LENTE ESCOLHIDA DO SEU KIT</span>
-                      <span className="text-amber-400 font-bold">{teamOutput.cinematography_direction.lens.focal_length_mm}mm</span>
-                    </div>
-                    <h4 className="font-semibold text-white text-sm">
-                      {teamOutput.cinematography_direction.lens.model}
-                    </h4>
-                    <p className="text-[11px] text-zinc-300 leading-relaxed">
-                      {teamOutput.cinematography_direction.lens.choice_reason}
-                    </p>
-                  </div>
-
-                  {/* Iluminação Principal a 45° */}
-                  <div className="bg-black/30 p-3.5 rounded-xl border border-white/[0.06] space-y-2">
-                    <div className="flex items-center justify-between font-mono text-[10px] text-zinc-500">
-                      <span>LUZ PRINCIPAL (KEY LIGHT)</span>
-                      <span className="text-amber-400 font-bold">ÂNGULO 45°</span>
-                    </div>
-                    <h4 className="font-medium text-white text-xs">
-                      {teamOutput.cinematography_direction.lighting.key_light.equipment_used}
-                    </h4>
-                    <p className="text-[11px] text-zinc-400 leading-relaxed">
-                      Altura {teamOutput.cinematography_direction.lighting.key_light.height} com {teamOutput.cinematography_direction.lighting.key_light.modifier}.
-                    </p>
-                    <p className="text-[10px] font-mono text-zinc-400">
-                      Distância da parede: {teamOutput.cinematography_direction.lighting.key_light.distance_to_wall_m}m (Sombra suave calculada).
-                    </p>
-
-                    <div className="pt-1.5 flex items-center gap-2 text-[11px] font-mono text-emerald-400">
-                      <span className="w-2 h-2 rounded-full bg-emerald-400" />
-                      <span>Posição e feixe visualizados no Mapa 3D ao lado</span>
-                    </div>
-                  </div>
-                </>
-              )}
-            </div>
-          )}
-
-          {/* ABA 5: PLANO DE TAKES */}
-          {activeTab === 'takes' && (
-            <div className="space-y-3.5 text-xs animate-fade-in">
-              {!isScriptApproved || !teamOutput ? (
-                <div className="bg-black/30 border border-white/10 rounded-xl p-6 text-center space-y-3">
-                  <Lock className="w-8 h-8 text-purple-400 mx-auto" />
-                  <h4 className="font-bold text-white text-xs uppercase font-mono">
-                    Plano de Takes Aguardando Roteiro
-                  </h4>
-                  <p className="text-zinc-400 text-xs max-w-sm mx-auto leading-relaxed">
-                    Os takes operacionais são desmembrados diretamente das cenas do roteiro aprovado.
-                  </p>
-                  <button
-                    type="button"
-                    onClick={() => setActiveTab('conversar')}
-                    className="py-2 px-4 bg-purple-500/20 hover:bg-purple-500/30 text-purple-300 border border-purple-500/40 rounded-xl text-xs font-semibold"
-                  >
-                    Aprovar Roteiro no Chat
-                  </button>
-                </div>
-              ) : (
-                <>
-                  <div className="flex items-center justify-between pb-2 border-b border-white/[0.06]">
-                    <span className="font-bold text-white uppercase text-[11px] font-mono">
-                      Plano Operacional de Takes
-                    </span>
-                    <span className="text-[11px] font-mono text-zinc-400">
-                      {doneTakes.length}/{teamOutput.takes.length} gravados
-                    </span>
-                  </div>
-
-                  <div className="space-y-2 max-h-[360px] overflow-y-auto pr-1">
-                    {teamOutput.takes.map((take) => {
-                      const isDone = doneTakes.includes(take.sceneNumber);
-
-                      return (
-                        <div
-                          key={take.sceneNumber}
-                          onClick={() => toggleTake(take.sceneNumber)}
-                          className={cn(
-                            'p-3 rounded-xl border transition-all cursor-pointer select-none',
-                            isDone
-                              ? 'bg-emerald-500/[0.05] border-emerald-500/30'
-                              : 'bg-black/30 border-white/[0.06] hover:border-white/20'
-                          )}
-                        >
-                          <div className="flex items-center justify-between mb-1">
-                            <span className="text-[10px] font-mono font-semibold text-zinc-400 uppercase">
-                              CENA 0{take.sceneNumber} • {take.framing}
-                            </span>
-                            <div
-                              className={cn(
-                                'w-4 h-4 rounded flex items-center justify-center text-xs',
-                                isDone ? 'bg-emerald-400 text-zinc-950' : 'border border-zinc-600'
-                              )}
-                            >
-                              {isDone && <CheckCircle2 className="w-3 h-3 stroke-[3]" />}
-                            </div>
-                          </div>
-
-                          <h4
-                            className={cn(
-                              'font-medium text-white mb-1',
-                              isDone && 'line-through text-zinc-500'
-                            )}
-                          >
-                            {take.title}
-                          </h4>
-
-                          <p className="text-[11px] text-zinc-400 leading-relaxed">
-                            {take.description}
-                          </p>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </>
-              )}
             </div>
           )}
         </div>
-      </div>
+      )}
 
       {/* MODAL DE EXPLICAÇÃO TÉCNICA */}
       <WhyModal

@@ -47,15 +47,12 @@ export function ScriptReviewCard({
 }: ScriptReviewCardProps) {
   const [isEditMode, setIsEditMode] = useState(false);
   const [editedHook, setEditedHook] = useState(script.hook);
-  const [editedCentralQuestion, setEditedCentralQuestion] = useState(script.central_question);
   const [editedCta, setEditedCta] = useState(script.cta);
   const [editedScenes, setEditedScenes] = useState<ScriptScene[]>(script.scenes);
-  const [showAdjustQuickBar, setShowAdjustQuickBar] = useState(false);
 
   // Sincroniza estado de edição ao receber novo script
   React.useEffect(() => {
     setEditedHook(script.hook);
-    setEditedCentralQuestion(script.central_question);
     setEditedCta(script.cta);
     setEditedScenes(script.scenes);
   }, [script]);
@@ -65,7 +62,6 @@ export function ScriptReviewCard({
     const updated: ScriptCreatorOutput = {
       ...script,
       hook: editedHook,
-      central_question: editedCentralQuestion,
       cta: editedCta,
       scenes: editedScenes,
       dialogue_overview: editedScenes.map((s) => s.dialogue),
@@ -78,14 +74,6 @@ export function ScriptReviewCard({
     setEditedScenes((prev) => {
       const copy = [...prev];
       copy[idx] = { ...copy[idx], dialogue: newDialogue };
-      return copy;
-    });
-  };
-
-  const handleSceneActionChange = (idx: number, newAction: string) => {
-    setEditedScenes((prev) => {
-      const copy = [...prev];
-      copy[idx] = { ...copy[idx], action: newAction };
       return copy;
     });
   };
@@ -115,10 +103,10 @@ export function ScriptReviewCard({
               )}
             </div>
             <p className="text-[11px] text-zinc-400">
-              {script.scenes.length} cenas estruturadas pela metodologia de retenção humana
+              {script.scenes.length} {script.scenes.length === 1 ? 'cena' : 'cenas'} para o seu vídeo
             </p>
 
-            {/* SELETOR DE VERSÕES HISTÓRICAS (Seção 8 do Master Prompt) */}
+            {/* SELETOR DE VERSÕES HISTÓRICAS */}
             {versions && versions.length > 0 && (
               <div className="flex flex-wrap items-center gap-1.5 pt-1 text-[10px] font-mono">
                 <span className="text-zinc-500">Versões:</span>
@@ -182,33 +170,12 @@ export function ScriptReviewCard({
         </div>
       </div>
 
-      {/* ESTRATÉGIA E JUSTIFICATIVA CRIATIVA */}
-      {(script.creative_angle || script.creative_justification) && (
-        <div className="bg-purple-500/[0.06] border border-purple-500/25 rounded-xl p-3 space-y-1.5 text-xs">
-          {script.creative_angle && (
-            <div className="flex items-center gap-1.5 text-purple-300 font-mono font-bold text-[11px]">
-              <Sparkles className="w-3.5 h-3.5" />
-              <span>Estratégia Narrativa: {script.creative_angle}</span>
-            </div>
-          )}
-          {script.creative_justification && (
-            <p className="text-zinc-300 text-[11px] leading-relaxed">
-              <span className="text-zinc-400 font-mono font-semibold">Direção Criativa: </span>
-              {script.creative_justification}
-            </p>
-          )}
-        </div>
-      )}
-
-      {/* BLOCO 1: GANCHO ANTI-CLICHÊ (0-3s) */}
+      {/* BLOCO 1: GANCHO (0-3s) */}
       <div className="bg-purple-500/[0.04] border border-purple-500/20 rounded-xl p-3.5 space-y-2">
         <div className="flex items-center justify-between">
           <span className="text-[10px] font-mono font-bold uppercase text-purple-400 flex items-center gap-1.5">
             <Sparkles className="w-3.5 h-3.5" />
-            <span>Gancho Anti-Clichê (Primeiros 3 segundos):</span>
-          </span>
-          <span className="text-[10px] font-mono text-zinc-500 bg-white/[0.03] px-2 py-0.5 rounded">
-            Retenção Imediata
+            <span>Gancho Inicial (0 a 3 segundos):</span>
           </span>
         </div>
 
@@ -220,37 +187,23 @@ export function ScriptReviewCard({
             className="w-full bg-black/50 border border-purple-500/40 rounded-xl p-2.5 text-xs text-white placeholder-zinc-500 focus:outline-none focus:border-purple-400"
           />
         ) : (
-          <p className="text-white font-medium text-xs italic leading-relaxed">
-            {script.hook}
+          <p className="text-white font-medium text-xs leading-relaxed">
+            "{script.hook}"
           </p>
         )}
-
-        <div className="pt-1 text-[11px] text-zinc-400">
-          <span className="text-purple-300 font-mono">Pergunta Central: </span>
-          {isEditMode ? (
-            <input
-              type="text"
-              value={editedCentralQuestion}
-              onChange={(e) => setEditedCentralQuestion(e.target.value)}
-              className="w-full mt-1 bg-black/50 border border-white/10 rounded-lg p-2 text-xs text-zinc-200"
-            />
-          ) : (
-            <span>{script.central_question}</span>
-          )}
-        </div>
       </div>
 
-      {/* BLOCO 2: CENAS E FALAS */}
+      {/* BLOCO 2: CENAS E FALAS DIRETAS (SEM INFORMAÇÕES TÉCNICAS DESNECESSÁRIAS) */}
       <div className="space-y-3">
         <span className="text-[10px] font-mono uppercase text-zinc-500 block">
-          Estrutura de Cenas & Diálogos:
+          Cenas & Falas:
         </span>
 
         <div className="space-y-2.5 max-h-[380px] overflow-y-auto pr-1">
           {editedScenes.map((scene, idx) => (
             <div
               key={scene.sceneNumber}
-              className="p-3.5 bg-black/30 border border-white/[0.06] rounded-xl space-y-2.5 hover:border-white/15 transition-colors"
+              className="p-3 bg-black/30 border border-white/[0.06] rounded-xl space-y-2 hover:border-white/15 transition-colors"
             >
               <div className="flex items-center justify-between">
                 <span className="text-[10px] font-mono font-bold text-purple-400 uppercase">
@@ -258,13 +211,13 @@ export function ScriptReviewCard({
                 </span>
                 <span className="text-[10px] font-mono text-zinc-400 bg-white/[0.04] px-2 py-0.5 rounded flex items-center gap-1">
                   <Clock className="w-3 h-3 text-zinc-500" />
-                  {scene.durationSec}s • {scene.shotType}
+                  {scene.durationSec}s
                 </span>
               </div>
 
-              {/* FALA / DIÁLOGO HUMANO */}
+              {/* FALA / DIÁLOGO */}
               <div className="p-2.5 bg-black/50 rounded-lg border-l-2 border-purple-500 space-y-1">
-                <span className="text-[9px] font-mono text-zinc-500 uppercase block">FALA / DIÁLOGO:</span>
+                <span className="text-[9px] font-mono text-zinc-500 uppercase block">FALA / TEXTO:</span>
                 {isEditMode ? (
                   <textarea
                     value={scene.dialogue}
@@ -278,34 +231,13 @@ export function ScriptReviewCard({
                   </p>
                 )}
               </div>
-
-              {/* AÇÃO E VISUAL */}
-              <div className="text-[11px] space-y-1 text-zinc-400">
-                <p>
-                  <span className="text-zinc-500 font-mono">Ação Física: </span>
-                  {isEditMode ? (
-                    <input
-                      type="text"
-                      value={scene.action}
-                      onChange={(e) => handleSceneActionChange(idx, e.target.value)}
-                      className="w-full mt-1 bg-black/50 border border-white/10 rounded-lg p-1.5 text-xs text-zinc-300"
-                    />
-                  ) : (
-                    <span>{scene.action}</span>
-                  )}
-                </p>
-                <p>
-                  <span className="text-zinc-500 font-mono">Ideia Visual: </span>
-                  <span>{scene.visualIdea}</span>
-                </p>
-              </div>
             </div>
           ))}
 
           {/* BLOCO 3: CHAMADA PARA AÇÃO (CTA) */}
-          <div className="p-3.5 bg-emerald-500/[0.04] border border-emerald-500/20 rounded-xl space-y-1.5">
+          <div className="p-3 bg-emerald-500/[0.04] border border-emerald-500/20 rounded-xl space-y-1.5">
             <span className="text-[10px] font-mono font-bold uppercase text-emerald-400 block">
-              Chamada para Ação (CTA):
+              Chamada para Ação (Final do Vídeo):
             </span>
             {isEditMode ? (
               <textarea
@@ -316,14 +248,14 @@ export function ScriptReviewCard({
               />
             ) : (
               <p className="text-white text-xs leading-relaxed font-medium">
-                {script.cta}
+                "{script.cta}"
               </p>
             )}
           </div>
         </div>
       </div>
 
-      {/* BLOCO 4: OS 4 CONTROLES OBRIGATÓRIOS DO USUÁRIO (SEÇÃO 6, 7 & 20) */}
+      {/* BLOCO 4: CONTROLES DO USUÁRIO */}
       <div className="pt-2 border-t border-white/[0.08] space-y-2">
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
           {/* BOTÃO 1: APROVAR ROTEIRO */}
@@ -338,7 +270,7 @@ export function ScriptReviewCard({
             )}
           >
             <CheckCircle2 className="w-4 h-4" />
-            <span>{isApproved ? 'Roteiro Aprovado ✓' : 'Aprovar Roteiro & Gerar Cenas'}</span>
+            <span>{isApproved ? 'Roteiro Aprovado ✓' : 'Aprovar Roteiro & Liberar Produção'}</span>
           </button>
 
           {/* BOTÃO 2: REGENERAR OUTRA VERSÃO */}
@@ -372,7 +304,7 @@ export function ScriptReviewCard({
         {/* AJUSTES RÁPIDOS CONVERSACIONAIS */}
         <div className="flex flex-wrap gap-1.5 pt-1">
           <span className="text-[10px] font-mono text-zinc-500 w-full mb-0.5">
-            Ou peça um ajuste cirúrgico à IA:
+            Ou peça um ajuste rápido:
           </span>
           {[
             { label: '🔥 Gancho Mais Forte', prompt: 'Muda apenas o gancho para algo mais provocativo e forte' },
