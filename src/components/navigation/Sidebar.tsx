@@ -32,8 +32,9 @@ export function Sidebar() {
 
   const navItems = [
     { href: '/', label: 'Visão Geral', icon: LayoutGrid },
+    { href: '/agenda', label: 'Agenda & Google', icon: Calendar },
     { href: '/diretor', label: 'Diretor Técnico', icon: Crosshair },
-    { href: '/gravacoes', label: 'Diárias de Gravação', icon: Clapperboard },
+    { href: '/gravacoes', label: 'Diárias de Set', icon: Clapperboard },
     { href: '/clientes', label: 'Clientes & Projetos', icon: Users },
     { href: '/equipamentos', label: 'Kits & Inventário', icon: Layers },
   ];

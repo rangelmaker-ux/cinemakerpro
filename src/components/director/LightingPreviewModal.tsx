@@ -78,12 +78,19 @@ export function LightingPreviewModal({
 
     try {
       const img = new Image();
-      img.crossOrigin = 'anonymous';
+      // Não adicionar crossOrigin em URLs locais blob: ou data:
+      if (!photoUrl.startsWith('blob:') && !photoUrl.startsWith('data:')) {
+        img.crossOrigin = 'anonymous';
+      }
       img.src = photoUrl;
 
       await new Promise<void>((resolve, reject) => {
-        img.onload = () => resolve();
-        img.onerror = () => reject(new Error('Erro ao carregar a imagem'));
+        if (img.complete) {
+          resolve();
+        } else {
+          img.onload = () => resolve();
+          img.onerror = () => reject(new Error('Erro ao carregar a imagem'));
+        }
       });
 
       const { finalCanvas, depthCanvas, metrics } = await processPhysicallyBasedRelight(img, params);
@@ -92,6 +99,8 @@ export function LightingPreviewModal({
       setSpatialMetrics(metrics);
     } catch (err) {
       console.error('Erro ao renderizar relighting 3D:', err);
+      // Fallback: se houver qualquer erro no shader, usa a foto original
+      setRenderedFinalUrl(photoUrl);
     } finally {
       setIsProcessing(false);
     }
@@ -339,10 +348,10 @@ export function LightingPreviewModal({
               </div>
 
               {/* RENDER VIEW 1: PREVIEW 3D FINAL */}
-              {viewMode === 'relight' && renderedFinalUrl && (
+              {viewMode === 'relight' && (renderedFinalUrl || photoUrl) && (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img
-                  src={renderedFinalUrl}
+                  src={renderedFinalUrl || photoUrl || ''}
                   alt="Iluminação 3D com Profundidade"
                   className="w-full h-full object-cover animate-fade-in"
                 />

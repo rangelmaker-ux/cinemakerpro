@@ -11,7 +11,7 @@ export async function GET(req: NextRequest) {
   const redirectUri = `${proto}://${host}/api/auth/google/callback`;
 
   if (error || !code) {
-    const errorUrl = new URL('/perfil', req.url);
+    const errorUrl = new URL('/agenda', req.url);
     errorUrl.searchParams.set('google_error', error || 'access_denied');
     return NextResponse.redirect(errorUrl);
   }
@@ -21,7 +21,7 @@ export async function GET(req: NextRequest) {
     const clientSecret = process.env.GOOGLE_CLIENT_SECRET;
 
     if (!clientId || !clientSecret) {
-      const errUrl = new URL('/perfil', req.url);
+      const errUrl = new URL('/agenda', req.url);
       errUrl.searchParams.set('google_error', 'missing_credentials');
       return NextResponse.redirect(errUrl);
     }
@@ -64,8 +64,8 @@ export async function GET(req: NextRequest) {
       console.error('Erro ao obter userinfo Google:', uErr);
     }
 
-    // Redireciona com confirmação de sucesso
-    const successUrl = new URL('/perfil', req.url);
+    // Redireciona com confirmação de sucesso para a Agenda Visual
+    const successUrl = new URL('/agenda', req.url);
     successUrl.searchParams.set('google_connected', 'true');
     if (userEmail) successUrl.searchParams.set('google_email', userEmail);
     if (userName) successUrl.searchParams.set('google_name', userName);

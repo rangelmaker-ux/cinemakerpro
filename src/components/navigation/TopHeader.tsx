@@ -23,6 +23,8 @@ export function TopHeader() {
     switch (pathname) {
       case '/':
         return 'Visão Geral do Estúdio';
+      case '/agenda':
+        return 'Agenda & Google Calendar';
       case '/diretor':
         return 'Diretor Técnico de Set';
       case '/clientes':

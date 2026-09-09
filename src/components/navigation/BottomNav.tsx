@@ -3,7 +3,7 @@
 import React from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { LayoutGrid, Clapperboard, Crosshair, Users, Layers, ShieldCheck } from 'lucide-react';
+import { LayoutGrid, Clapperboard, Crosshair, Users, Layers, ShieldCheck, Calendar } from 'lucide-react';
 import { useAppStore } from '@/lib/store/local-store';
 import { cn } from '@/lib/utils';
 
@@ -18,10 +18,11 @@ export function BottomNav() {
 
   const navItems = [
     { href: '/', label: 'Início', icon: LayoutGrid },
-    { href: '/gravacoes', label: 'Diárias', icon: Clapperboard },
+    { href: '/agenda', label: 'Agenda', icon: Calendar },
     { href: '/diretor', label: 'Diretor', icon: Crosshair, isHighlight: true },
+    { href: '/equipamentos', label: 'Kits', icon: Layers },
+    { href: '/gravacoes', label: 'Diárias', icon: Clapperboard },
     { href: '/clientes', label: 'Clientes', icon: Users },
-    { href: isAdmin ? '/admin' : '/equipamentos', label: isAdmin ? 'Admin' : 'Kits', icon: isAdmin ? ShieldCheck : Layers },
   ];
 
   return (

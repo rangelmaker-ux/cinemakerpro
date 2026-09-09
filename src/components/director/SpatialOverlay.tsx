@@ -36,30 +36,24 @@ export function SpatialOverlay({
     <div className="flex flex-col gap-3">
       {/* Viewfinder Monitor Frame */}
       <div className="relative w-full aspect-[4/3] sm:aspect-[16/10] bg-[#0c0e14] rounded-2xl overflow-hidden border border-white/[0.08] shadow-2xl">
-        {/* Marcadores de Enquadramento Cinematográfico (HUD de Câmera) */}
-        <div className="absolute inset-3 pointer-events-none border border-white/10 rounded-xl z-20">
-          {/* Marcadores de cantos */}
-          <div className="absolute top-0 left-0 w-3 h-3 border-t-2 border-l-2 border-white/40" />
-          <div className="absolute top-0 right-0 w-3 h-3 border-t-2 border-r-2 border-white/40" />
-          <div className="absolute bottom-0 left-0 w-3 h-3 border-b-2 border-l-2 border-white/40" />
-          <div className="absolute bottom-0 right-0 w-3 h-3 border-b-2 border-r-2 border-white/40" />
-
-          {/* Crosshair central sutil */}
-          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-4 h-4 pointer-events-none opacity-25">
-            <div className="absolute top-1/2 left-0 right-0 h-[1px] bg-white" />
-            <div className="absolute left-1/2 top-0 bottom-0 w-[1px] bg-white" />
-          </div>
+        {/* HUD de Monitor de Set */}
+        <div className="absolute inset-3 pointer-events-none z-20">
+          {/* Marcadores sutis de cantos cinematográficos */}
+          <div className="absolute top-0 left-0 w-3 h-3 border-t border-l border-white/30" />
+          <div className="absolute top-0 right-0 w-3 h-3 border-t border-r border-white/30" />
+          <div className="absolute bottom-0 left-0 w-3 h-3 border-b border-l border-white/30" />
+          <div className="absolute bottom-0 right-0 w-3 h-3 border-b border-r border-white/30" />
 
           {/* HUD Status Bar */}
           <div className="absolute top-2 left-3 right-3 flex items-center justify-between text-[9px] font-mono text-white/70 tracking-wider">
             <span>REC • 24 FPS • 1/50</span>
             <div className="flex items-center gap-2">
-              <span className="text-amber-400 font-bold uppercase">MAPA TÉCNICO</span>
+              <span className="text-amber-400 font-bold uppercase">MAPA TÉCNICO DE SET</span>
             </div>
           </div>
         </div>
 
-        {/* Botão Flutuante de Atalho para Preview de Luz Artificial (Apenas quando a foto for enviada) */}
+        {/* Botão Flutuante de Atalho para Preview de Luz Artificial */}
         {photoUrl && onOpenLightingPreview && (
           <button
             type="button"
@@ -77,7 +71,7 @@ export function SpatialOverlay({
           <img
             src={photoUrl}
             alt="Ambiente real fotografado"
-            className="w-full h-full object-cover brightness-[0.7] contrast-[1.1]"
+            className="w-full h-full object-cover"
           />
         ) : (
           // Mock de estúdio com perspectiva limpa
@@ -97,59 +91,52 @@ export function SpatialOverlay({
           </div>
         )}
 
-        {/* Camada SVG dos Vetores */}
+        {/* Camada SVG dos Vetores Limpos */}
         <svg className="absolute inset-0 w-full h-full pointer-events-none z-10">
           {lines.map((line, idx) => {
             const from = getElementById(line.fromId);
             const to = getElementById(line.toId);
             if (!from || !to) return null;
 
-            const midX = (from.x + to.x) / 2;
-            const midY = (from.y + to.y) / 2;
-
             return (
-              <g key={`line-${idx}`}>
-                <line
-                  x1={`${from.x}%`}
-                  y1={`${from.y}%`}
-                  x2={`${to.x}%`}
-                  y2={`${to.y}%`}
-                  stroke={line.color}
-                  strokeWidth="1.5"
-                  strokeDasharray={line.dashed ? '4,4' : 'none'}
-                  strokeOpacity="0.8"
-                />
-                {line.label && (
-                  <g transform={`translate(${midX * 3.5}, ${midY * 2.5})`}>
-                    <rect
-                      x={`${midX}%`}
-                      y={`${midY}%`}
-                      width="52"
-                      height="18"
-                      rx="9"
-                      fill="#090a0f"
-                      fillOpacity="0.95"
-                      stroke={line.color}
-                      strokeWidth="1"
-                      transform="translate(-26, -9)"
-                    />
-                    <text
-                      x={`${midX}%`}
-                      y={`${midY}%`}
-                      fill="#ffffff"
-                      fontSize="9"
-                      fontFamily="monospace"
-                      textAnchor="middle"
-                      dominantBaseline="middle"
-                    >
-                      {line.label}
-                    </text>
-                  </g>
-                )}
-              </g>
+              <line
+                key={`line-${idx}`}
+                x1={`${from.x}%`}
+                y1={`${from.y}%`}
+                x2={`${to.x}%`}
+                y2={`${to.y}%`}
+                stroke={line.color}
+                strokeWidth="1.5"
+                strokeDasharray={line.dashed ? '4,4' : 'none'}
+                strokeOpacity="0.8"
+              />
             );
           })}
         </svg>
+
+        {/* Rótulos das Linhas em Camada HTML Absoluta (Sem Glitches de SVG) */}
+        {lines.map((line, idx) => {
+          const from = getElementById(line.fromId);
+          const to = getElementById(line.toId);
+          if (!from || !to || !line.label) return null;
+
+          const midX = (from.x + to.x) / 2;
+          const midY = (from.y + to.y) / 2;
+
+          return (
+            <div
+              key={`label-${idx}`}
+              style={{
+                left: `${midX}%`,
+                top: `${midY}%`,
+                transform: 'translate(-50%, -50%)',
+              }}
+              className="absolute z-20 pointer-events-none px-2 py-0.5 rounded-full bg-black/85 border border-white/15 text-[9px] font-mono text-zinc-300 shadow-md whitespace-nowrap"
+            >
+              {line.label}
+            </div>
+          );
+        })}
 
         {/* Marcadores dos Elementos Físicos */}
         {elements.map((el) => {
