@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useMemo, Suspense } from 'react';
+import React, { useState, useEffect, useMemo, Suspense, useRef } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import {
@@ -27,18 +27,28 @@ import {
   ChevronRight,
   ShieldAlert,
   Settings,
+  Lock,
+  ArrowRight,
 } from 'lucide-react';
 import { useAppStore } from '@/lib/store/local-store';
 import {
-  executeProductionTeamAI,
-  GeneralDirectorOutput,
-  SharedProjectContext,
-} from '@/lib/ai/ai-orchestrator';
-import { AIDirectorSpatialData, FramingTestFeedback, SpatialElement, VectorLine } from '@/lib/ai/types';
+  activateDownstreamAgents,
+  applyTargetedAdjustment,
+  createInitialConversationState,
+  extractContextFromInput,
+  generateNarrativeScript,
+  AIProductionStage,
+  ChatMessage,
+  CreativeBrief,
+} from '@/lib/ai/conversational-engine';
+import { GeneralDirectorOutput, ScriptCreatorOutput, SharedProjectContext } from '@/lib/ai/team-types';
+import { AIDirectorSpatialData, SpatialElement, VectorLine } from '@/lib/ai/types';
 import { DirectorMode, VideoType } from '@/types/database';
 import { SpatialOverlay } from '@/components/director/SpatialOverlay';
 import { WhyModal } from '@/components/director/WhyModal';
 import { LightingPreviewModal } from '@/components/director/LightingPreviewModal';
+import { VoiceInput } from '@/components/director/VoiceInput';
+import { ScriptReviewCard } from '@/components/director/ScriptReviewCard';
 import { cn } from '@/lib/utils';
 
 function DirectorContent() {
@@ -57,13 +67,24 @@ function DirectorContent() {
   const [videoType, setVideoType] = useState<VideoType>(activeProject?.video_type || 'institucional');
   const [photoUrl, setPhotoUrl] = useState<string | null>(null);
   const [blockedZones, setBlockedZones] = useState<{ id: string; x: number; y: number }[]>([]);
-  const [isRecalculating, setIsRecalculating] = useState(false);
-  const [userFeedbackInput, setUserFeedbackInput] = useState('');
-  const [activeRefinementPrompt, setActiveRefinementPrompt] = useState<string>('');
+
+  // 1. ESTADOS DA MÁQUINA DE ESTADOS CONVERSACIONAL (IDLE POR PADRÃO, ZERO PRÉ-CARREGAMENTO)
+  const [stage, setStage] = useState<AIProductionStage>('idle');
+  const [currentBrief, setCurrentBrief] = useState<CreativeBrief | null>(null);
+  const [currentScript, setCurrentScript] = useState<ScriptCreatorOutput | null>(null);
+  const [isScriptApproved, setIsScriptApproved] = useState(false);
+  const [teamOutput, setTeamOutput] = useState<GeneralDirectorOutput | null>(null);
+  const [isThinking, setIsThinking] = useState(false);
   const [teamVersion, setTeamVersion] = useState(1);
 
-  // Gaveta ativa: 4 Agentes de IA + Takes
-  const [activeTab, setActiveTab] = useState<'diretor_geral' | 'roteiro' | 'cena' | 'fotografia' | 'takes'>('diretor_geral');
+  // Mensagens conversacionais (Inicia com saudação profissional convidando a falar ou digitar)
+  const [messages, setMessages] = useState<ChatMessage[]>(() => {
+    const initial = createInitialConversationState(selectedClient?.name);
+    return initial.messages;
+  });
+
+  // Gaveta ativa: Conversa/Roteiro, Diretor Geral, Cena, Foto, Takes
+  const [activeTab, setActiveTab] = useState<'conversar' | 'diretor_geral' | 'cena' | 'fotografia' | 'takes'>('conversar');
   const [isWhyOpen, setIsWhyOpen] = useState(false);
   const [isLightingPreviewOpen, setIsLightingPreviewOpen] = useState(false);
 
@@ -80,6 +101,13 @@ function DirectorContent() {
     { id: 'c8', label: 'Take principal gravado com foco cravado nos olhos', done: false },
   ]);
 
+  const chatBottomRef = useRef<HTMLDivElement>(null);
+
+  // Auto-scroll do chat ao receber mensagens
+  useEffect(() => {
+    chatBottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages, isThinking]);
+
   // Contexto Compartilhado de Produção (Seção 4 do Master Prompt)
   const sharedContext = useMemo<SharedProjectContext>(() => {
     const userLenses = equipments.filter((e) => e.category === 'lens');
@@ -89,28 +117,28 @@ function DirectorContent() {
     return {
       project: {
         id: activeProject?.id || 'proj-1',
-        title: activeProject?.title || 'Produção Audiovisual',
+        title: activeProject?.title || currentBrief?.topic || 'Produção Audiovisual',
         videoType: videoType,
         mode: mode,
-        format: '16:9',
+        format: currentBrief?.format || '9:16',
       },
       client: {
         id: selectedClient?.id,
-        name: selectedClient?.name || 'Cliente',
+        name: selectedClient?.name || currentBrief?.client || 'Cliente',
         company: selectedClient?.company,
         segment: 'Audiovisual / Negócios',
       },
       briefing: {
-        objective: activeProject?.objective || 'Apresentação comercial e conexão humana com a audiência',
+        objective: currentBrief?.objective || 'Apresentação comercial e conexão humana com a audiência',
         audience: 'Clientes e parceiros estratégicos',
-        tone: mode === 'criativo' ? 'Cinematográfico e envolvente' : 'Profissional e acolhedor',
-        keyMessage: 'Excelência técnica e entrega de valor comprovada',
-        targetEmotion: 'Confiança e desejo de transformação',
+        tone: currentBrief?.tone || 'Natural e profissional',
+        keyMessage: currentBrief?.topic || 'Excelência técnica e entrega de valor comprovada',
+        targetEmotion: 'Confiança e clareza',
       },
       video_type: videoType,
-      platform: videoType === 'reels' ? 'reels' : 'institucional',
-      format: videoType === 'reels' ? '9:16' : '16:9',
-      duration: videoType === 'reels' ? '45s' : '90s',
+      platform: currentBrief?.platform === 'YouTube' ? 'youtube' : 'reels',
+      format: currentBrief?.format || '9:16',
+      duration: currentBrief ? `${currentBrief.duration_seconds}s` : '30s',
       environment: {
         photoUrl: photoUrl,
         type: 'interno',
@@ -128,31 +156,55 @@ function DirectorContent() {
         singleLightOnly: userLights.length <= 1,
       },
       user_preferences: {
-        customPrompt: activeRefinementPrompt || undefined,
         preferredAngle: blockedZones.some((b) => b.x < 40) ? '45_right' : '45_left',
       },
     };
-  }, [selectedClient, activeProject, equipments, videoType, mode, photoUrl, blockedZones, activeRefinementPrompt]);
+  }, [selectedClient, activeProject, equipments, videoType, mode, photoUrl, blockedZones, currentBrief]);
 
-  // Execução da Equipe Criativa de IA (4 Agentes Orquestrados)
-  const [teamOutput, setTeamOutput] = useState<GeneralDirectorOutput>(() =>
-    executeProductionTeamAI(sharedContext)
-  );
-
-  // Recalcula a orquestração quando parâmetros mudam
+  // Recalcular downstream caso parâmetros mudem após aprovação
   useEffect(() => {
-    setIsRecalculating(true);
-    const timer = setTimeout(() => {
-      const output = executeProductionTeamAI(sharedContext);
+    if (isScriptApproved && currentScript) {
+      const output = activateDownstreamAgents(sharedContext, currentScript);
       setTeamOutput(output);
-      setIsRecalculating(false);
-    }, 200);
-
-    return () => clearTimeout(timer);
-  }, [sharedContext]);
+    }
+  }, [sharedContext, isScriptApproved, currentScript]);
 
   // Converte a saída da equipe de IA para o formato do Viewfinder e SVG
   const spatialData = useMemo<AIDirectorSpatialData>(() => {
+    if (!teamOutput || !isScriptApproved) {
+      // Estado de espera: guia visual limpo sem poluentes
+      return {
+        elements: [],
+        lines: [],
+        cameraSettings: {
+          lensName: equipments.find((e) => e.category === 'lens')?.model || 'Lente 35mm',
+          focalLength: '35mm',
+          aperture: 'f/2.8',
+          height: '1.45m',
+          framing: 'Aguardando aprovação do roteiro',
+          shotType: 'Plano Médio',
+        },
+        lightingSettings: {
+          keyLightAngle: '45°',
+          keyLightHeight: '1.80m',
+          keyLightModifier: 'Softbox Difusor',
+          backLightNotes: 'Recuo de 1,5m da parede de fundo',
+        },
+        audioSettings: {
+          micType: 'Lapela Sem Fio',
+          position: '15cm da boca',
+          cautions: 'Fixar cabo sob a camisa',
+        },
+        subjectSettings: {
+          distanceFromWall: '1,5m de recuo da parede',
+          orientation: 'Corpo 20° virado para a luz principal',
+        },
+        avoids: ['Aguardando roteiro aprovado pelo usuário'],
+        whyExplanation: 'O Diretor de Cena e o Fotógrafo calcularão os enquadramentos e a luz perfeitos assim que o roteiro for aprovado.',
+        takesPlan: [],
+      };
+    }
+
     const vd = teamOutput.visual_direction_data;
     const isLeft = vd.lighting.key.side === 'left';
 
@@ -284,7 +336,179 @@ function DirectorContent() {
         description: t.description,
       })),
     };
-  }, [teamOutput, mode]);
+  }, [teamOutput, isScriptApproved, equipments, mode]);
+
+  // ENVIAR MENSAGEM (TEXTO OU ÁUDIO FALADO PELO USUÁRIO)
+  const handleSendMessage = (text: string, isAudio: boolean = false) => {
+    if (!text.trim()) return;
+
+    const userMsg: ChatMessage = {
+      id: `msg-${Date.now()}`,
+      sender: 'user',
+      senderTitle: 'Você',
+      text: text.trim(),
+      timestamp: new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
+      isAudio: isAudio,
+    };
+
+    setMessages((prev) => [...prev, userMsg]);
+    setIsThinking(true);
+
+    setTimeout(() => {
+      const analysis = extractContextFromInput(text, currentBrief);
+      setCurrentBrief(analysis.brief);
+
+      // CASO 1: USUÁRIO APROVOU O ROTEIRO EXISTENTE
+      if (analysis.isApproval && currentScript) {
+        handleApproveScript();
+        setIsThinking(false);
+        return;
+      }
+
+      // CASO 2: USUÁRIO PEDIU PARA REFAZER / REGENERAR TUDO
+      if (analysis.isRejectionOrRegen && currentScript) {
+        handleRegenerateScript();
+        setIsThinking(false);
+        return;
+      }
+
+      // CASO 3: USUÁRIO PEDIU AJUSTE CIRÚRGICO ESPECÍFICO (GANCHO, CTA, TOM)
+      if (analysis.isTargetedAdjustment && currentScript && analysis.adjustmentType) {
+        handleTargetedAdjustment(analysis.adjustmentType, text);
+        setIsThinking(false);
+        return;
+      }
+
+      // CASO 4: FALTA INFORMAÇÃO CRÍTICA (PRIMEIRO CONTATO VAGO)
+      if (!analysis.isCompleteEnough && !currentScript) {
+        const clarifyMsg: ChatMessage = {
+          id: `msg-${Date.now() + 1}`,
+          sender: 'diretor_geral',
+          senderTitle: 'Diretor Geral',
+          text:
+            analysis.missingInfoQuestion ||
+            'Excelente! Me conta um pouco mais sobre o nicho do negócio e qual mensagem central você quer passar nesse vídeo.',
+          timestamp: new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
+          stage: 'clarification',
+        };
+        setMessages((prev) => [...prev, clarifyMsg]);
+        setStage('clarification');
+        setIsThinking(false);
+        return;
+      }
+
+      // CASO 5: INFORMAÇÃO SUFICIENTE -> GERAR ROTEIRO NARRATIVO DEDICADO
+      const newScript = generateNarrativeScript(analysis.brief, false);
+      setCurrentScript(newScript);
+      setIsScriptApproved(false);
+      setStage('script_review');
+
+      const dgResponse: ChatMessage = {
+        id: `msg-${Date.now() + 1}`,
+        sender: 'diretor_geral',
+        senderTitle: 'Diretor Geral',
+        text: `Entendi perfeitamente! Vídeo de ${analysis.brief.duration_seconds}s para ${analysis.brief.client} focado em "${analysis.brief.topic}", gravado no formato ${analysis.brief.format} para ${analysis.brief.platform}. O Criador de Roteiro estruturou a narrativa abaixo. Revise, edite se desejar ou aprove para liberarmos os enquadramentos:`,
+        timestamp: new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
+        stage: 'script_review',
+        script: newScript,
+        brief: analysis.brief,
+      };
+
+      setMessages((prev) => [...prev, dgResponse]);
+      setActiveTab('conversar');
+      setIsThinking(false);
+    }, 350);
+  };
+
+  // APROVAR ROTEIRO (DESBLOQUEIA DIRETORES DE CENA, FOTO, VIEW FINDER E TAKES)
+  const handleApproveScript = () => {
+    if (!currentScript) return;
+
+    setIsScriptApproved(true);
+    setStage('production_ready');
+
+    const output = activateDownstreamAgents(sharedContext, currentScript);
+    setTeamOutput(output);
+    setTeamVersion((v) => v + 1);
+
+    const approvalMsg: ChatMessage = {
+      id: `msg-${Date.now()}`,
+      sender: 'diretor_geral',
+      senderTitle: 'Diretor Geral',
+      text: `✓ Roteiro aprovado por você! O Diretor de Cena e o Diretor de Fotografia calcularam a posição a 1,5m da parede de fundo, as lentes do seu kit (${output.cinematography_direction.lens.model}) e a luz principal a 45°. O monitor espacial, plano de takes e checklist estão 100% liberados!`,
+      timestamp: new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
+      stage: 'production_ready',
+    };
+
+    setMessages((prev) => [...prev, approvalMsg]);
+  };
+
+  // REGENERAR ROTEIRO (OUTRA PROPOSTA NARRATIVA)
+  const handleRegenerateScript = () => {
+    if (!currentBrief) return;
+    setIsThinking(true);
+
+    setTimeout(() => {
+      const alternativeScript = generateNarrativeScript(currentBrief, true);
+      setCurrentScript(alternativeScript);
+      setIsScriptApproved(false);
+      setStage('script_review');
+
+      const regenMsg: ChatMessage = {
+        id: `msg-${Date.now()}`,
+        sender: 'criador_roteiro',
+        senderTitle: 'Criador de Roteiro',
+        text: `Criei uma proposta de narrativa alternativa com um novo ângulo de abordagem. Confira o novo gancho e as cenas abaixo:`,
+        timestamp: new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
+        stage: 'script_review',
+        script: alternativeScript,
+      };
+
+      setMessages((prev) => [...prev, regenMsg]);
+      setIsThinking(false);
+    }, 300);
+  };
+
+  // AJUSTE CIRÚRGICO (TARGETED REGENERATION)
+  const handleTargetedAdjustment = (
+    type: 'hook' | 'cta' | 'duration' | 'tone' | 'dialogue',
+    directive: string
+  ) => {
+    if (!currentScript) return;
+    setIsThinking(true);
+
+    setTimeout(() => {
+      const updated = applyTargetedAdjustment(currentScript, type, directive);
+      setCurrentScript(updated);
+      setIsScriptApproved(false);
+
+      const adjMsg: ChatMessage = {
+        id: `msg-${Date.now()}`,
+        sender: 'criador_roteiro',
+        senderTitle: 'Criador de Roteiro',
+        text: `Ajustei o ${type === 'hook' ? 'gancho' : type === 'cta' ? 'CTA' : 'roteiro'} conforme solicitado: "${directive}". As outras partes foram preservadas com sucesso.`,
+        timestamp: new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
+        stage: 'script_review',
+        script: updated,
+      };
+
+      setMessages((prev) => [...prev, adjMsg]);
+      setIsThinking(false);
+    }, 250);
+  };
+
+  // EDIÇÃO MANUAL DO ROTEIRO PELO USUÁRIO
+  const handleUpdateScript = (editedScript: ScriptCreatorOutput) => {
+    setCurrentScript(editedScript);
+    const editMsg: ChatMessage = {
+      id: `msg-${Date.now()}`,
+      sender: 'diretor_geral',
+      senderTitle: 'Diretor Geral',
+      text: `Suas alterações manuais foram salvas e fixadas como conteúdo aprovado. Pronto para aprovação e gravação.`,
+      timestamp: new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
+    };
+    setMessages((prev) => [...prev, editMsg]);
+  };
 
   const handlePhotoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -301,7 +525,6 @@ function DirectorContent() {
 
   const handleResetBlocked = () => {
     setBlockedZones([]);
-    setActiveRefinementPrompt('');
   };
 
   const toggleTake = (num: number) => {
@@ -316,15 +539,9 @@ function DirectorContent() {
     );
   };
 
-  const handleApplyRefinement = (promptText: string) => {
-    setActiveRefinementPrompt(promptText);
-    setTeamVersion((v) => v + 1);
-    setUserFeedbackInput('');
-  };
-
   return (
     <div className="space-y-4 animate-fade-in pb-12">
-      {/* 1. BARRA DO KIT DE EQUIPAMENTOS ATIVO (Consciência de Kit Mandatória) */}
+      {/* 1. BARRA DO KIT DE EQUIPAMENTOS ATIVO */}
       <div className="bg-[#111318] border border-white/[0.08] rounded-2xl p-3.5 sm:p-4 flex flex-col md:flex-row md:items-center justify-between gap-3 shadow-md">
         <div className="flex items-center gap-3">
           <div className="w-9 h-9 rounded-xl bg-amber-500/15 border border-amber-500/30 flex items-center justify-center text-amber-400 shrink-0">
@@ -356,7 +573,7 @@ function DirectorContent() {
         </div>
       </div>
 
-      {/* 2. HEADER DO SET & SELETOR DE MODO */}
+      {/* 2. HEADER DO SET & STATUS DO PROJETO */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-[#111318] border border-white/[0.08] rounded-2xl p-4">
         <div className="flex items-center gap-3">
           <div className="w-9 h-9 rounded-xl bg-white/[0.05] border border-white/10 flex items-center justify-center text-white">
@@ -370,9 +587,15 @@ function DirectorContent() {
               <span className="text-[10px] font-mono text-zinc-400 bg-white/[0.05] border border-white/10 px-2 py-0.5 rounded">
                 {selectedClient?.name || 'Cliente'}
               </span>
-              <span className="text-[10px] font-mono text-amber-400 bg-amber-500/10 border border-amber-500/20 px-2 py-0.5 rounded uppercase">
-                v{teamVersion}
-              </span>
+              {isScriptApproved ? (
+                <span className="text-[10px] font-mono text-emerald-400 bg-emerald-500/10 border border-emerald-500/25 px-2 py-0.5 rounded uppercase font-semibold">
+                  PRODUÇÃO ATIVA (v{teamVersion})
+                </span>
+              ) : (
+                <span className="text-[10px] font-mono text-amber-400 bg-amber-500/10 border border-amber-500/20 px-2 py-0.5 rounded uppercase">
+                  ETAPA: {stage === 'idle' ? 'AGUARDANDO BRIEFING' : 'CRIANDO NARRATIVA'}
+                </span>
+              )}
             </div>
             <p className="text-[11px] text-zinc-400">
               Diretor Geral, Roteirista, Diretor de Cena e Fotógrafo colaborando em tempo real
@@ -406,17 +629,35 @@ function DirectorContent() {
         </div>
       </div>
 
-      {/* 3. GRID PRINCIPAL: MONITOR VIEWFINDER (7 cols) + EQUIPE DE IA (5 cols) */}
+      {/* 3. GRID PRINCIPAL: MONITOR VIEWFINDER (7 cols) + ÁREA CONVERSACIONAL E AGENTES (5 cols) */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
         {/* COLUNA DA ESQUERDA: Viewfinder Monitor & Controles */}
         <div className="lg:col-span-7 space-y-3">
           <div className="relative">
-            {isRecalculating && (
-              <div className="absolute inset-0 z-30 bg-black/60 backdrop-blur-xs rounded-2xl flex items-center justify-center">
-                <div className="bg-[#111318] px-4 py-2 rounded-xl border border-white/10 flex items-center gap-2 text-xs font-mono text-white shadow-xl">
-                  <div className="w-3 h-3 rounded-full border-2 border-white/30 border-t-white animate-spin" />
-                  <span>A equipe de IA está alinhando os parâmetros...</span>
+            {/* Se o roteiro ainda não foi aprovado, mostra aviso sutil no monitor */}
+            {!isScriptApproved && (
+              <div className="absolute inset-x-3 top-3 z-30 bg-black/85 backdrop-blur-xs border border-amber-500/30 rounded-xl p-3 text-xs text-zinc-300 shadow-xl flex items-center justify-between gap-3 animate-fade-in">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-7 h-7 rounded-lg bg-amber-500/20 text-amber-400 flex items-center justify-center shrink-0">
+                    <Lock className="w-3.5 h-3.5" />
+                  </div>
+                  <div>
+                    <span className="font-bold text-white block text-[11px] font-mono">
+                      MONITOR ESPACIAL AGUARDANDO ROTEIRO
+                    </span>
+                    <p className="text-[10px] text-zinc-400 leading-tight">
+                      Fale sua ideia no chat ao lado. A luz a 45° e os enquadramentos serão traçados após a aprovação do roteiro.
+                    </p>
+                  </div>
                 </div>
+
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('conversar')}
+                  className="py-1 px-2.5 bg-amber-500 text-zinc-950 font-bold text-[10px] rounded-lg shrink-0 hover:bg-amber-400 transition-colors"
+                >
+                  Ir ao Chat
+                </button>
               </div>
             )}
 
@@ -481,14 +722,14 @@ function DirectorContent() {
           </div>
         </div>
 
-        {/* COLUNA DA DIREITA: OS 4 AGENTES DE IA + PLANO DE TAKES (5 cols) */}
+        {/* COLUNA DA DIREITA: ÁREA CONVERSACIONAL + OS 4 ESPECIALISTAS (5 cols) */}
         <div className="lg:col-span-5 bg-[#111318] border border-white/[0.08] rounded-2xl p-4 sm:p-5 space-y-4">
           {/* Seletor dos Especialistas de IA */}
           <div className="grid grid-cols-5 gap-1 bg-black/40 p-1 rounded-xl border border-white/10 text-center font-mono">
             {(
               [
+                { id: 'conversar', label: 'Chat & Roteiro', icon: MessageSquare },
                 { id: 'diretor_geral', label: 'Geral', icon: Crosshair },
-                { id: 'roteiro', label: 'Roteiro', icon: BookOpen },
                 { id: 'cena', label: 'Cena', icon: User },
                 { id: 'fotografia', label: 'Foto', icon: Camera },
                 { id: 'takes', label: 'Takes', icon: Film },
@@ -496,6 +737,7 @@ function DirectorContent() {
             ).map((tab) => {
               const Icon = tab.icon;
               const isActive = activeTab === tab.id;
+              const isLocked = !isScriptApproved && tab.id !== 'conversar';
 
               return (
                 <button
@@ -503,442 +745,455 @@ function DirectorContent() {
                   type="button"
                   onClick={() => setActiveTab(tab.id)}
                   className={cn(
-                    'py-2 px-1 rounded-lg text-xs font-medium flex flex-col items-center gap-1 transition-all',
+                    'py-2 px-1 rounded-lg text-xs font-medium flex flex-col items-center gap-1 transition-all relative',
                     isActive
                       ? 'bg-white text-zinc-950 font-bold shadow-md'
+                      : isLocked
+                      ? 'text-zinc-500 hover:text-zinc-400'
                       : 'text-zinc-400 hover:text-zinc-200'
                   )}
                 >
                   <Icon className="w-3.5 h-3.5" />
                   <span className="text-[9px] tracking-tight">{tab.label}</span>
+                  {isLocked && (
+                    <div className="absolute top-1 right-1 w-1.5 h-1.5 rounded-full bg-amber-500/60" />
+                  )}
                 </button>
               );
             })}
           </div>
 
-          {/* ABA 1: DIRETOR GERAL */}
-          {activeTab === 'diretor_geral' && (
-            <div className="space-y-3.5 text-xs animate-fade-in">
-              <div className="flex items-center justify-between pb-2 border-b border-white/[0.06]">
-                <div className="flex items-center gap-2">
-                  <div className="w-2 h-2 rounded-full bg-amber-400" />
-                  <span className="font-bold text-white uppercase text-[11px] font-mono">
-                    DIRETOR GERAL (Decisão Criativa)
-                  </span>
-                </div>
-                <span className="text-[10px] font-mono text-amber-400 bg-amber-500/10 border border-amber-500/25 px-2 py-0.5 rounded">
-                  LÍDER DA EQUIPE
-                </span>
-              </div>
+          {/* ABA 1: CONVERSA / ROTEIRO (MÁQUINA CONVERSACIONAL DE IA) */}
+          {activeTab === 'conversar' && (
+            <div className="space-y-4 animate-fade-in">
+              {/* HISTÓRICO DE MENSAGENS CONVERSACIONAIS */}
+              <div className="space-y-3 max-h-[350px] overflow-y-auto pr-1">
+                {messages.map((msg) => {
+                  const isUser = msg.sender === 'user';
 
-              {/* Resumo Executivo */}
-              <div className="bg-black/30 p-3.5 rounded-xl border border-white/[0.06] space-y-1.5">
-                <span className="text-[10px] font-mono font-semibold uppercase text-zinc-400 block">
-                  Síntese da Produção:
-                </span>
-                <p className="text-zinc-200 text-xs leading-relaxed">
-                  {teamOutput.creative_direction.executive_summary}
-                </p>
-              </div>
+                  return (
+                    <div
+                      key={msg.id}
+                      className={cn(
+                        'flex flex-col gap-1',
+                        isUser ? 'items-end' : 'items-start'
+                      )}
+                    >
+                      <div className="flex items-center gap-1.5 text-[10px] font-mono text-zinc-500 px-1">
+                        {!isUser && (
+                          <div className="w-1.5 h-1.5 rounded-full bg-amber-400" />
+                        )}
+                        <span>{msg.senderTitle}</span>
+                        <span>•</span>
+                        <span>{msg.timestamp}</span>
+                        {msg.isAudio && (
+                          <span className="bg-red-500/15 text-red-400 text-[9px] px-1 rounded flex items-center gap-1">
+                            <Mic className="w-2.5 h-2.5" /> Áudio
+                          </span>
+                        )}
+                      </div>
 
-              {/* Teses dos Especialistas */}
-              <div className="space-y-2">
-                <div className="bg-black/20 p-3 rounded-xl border border-white/[0.05] space-y-1">
-                  <span className="text-[10px] font-mono text-purple-400 font-semibold uppercase block">
-                    📖 Tese Narrativa (Roteiro):
-                  </span>
-                  <p className="text-zinc-300 text-[11px] leading-relaxed">
-                    {teamOutput.creative_direction.narrative_thesis}
-                  </p>
-                </div>
+                      <div
+                        className={cn(
+                          'p-3 rounded-2xl text-xs leading-relaxed max-w-[92%]',
+                          isUser
+                            ? 'bg-amber-500/15 border border-amber-500/30 text-zinc-100 rounded-tr-xs'
+                            : 'bg-black/40 border border-white/10 text-zinc-200 rounded-tl-xs'
+                        )}
+                      >
+                        <p>{msg.text}</p>
 
-                <div className="bg-black/20 p-3 rounded-xl border border-white/[0.05] space-y-1">
-                  <span className="text-[10px] font-mono text-blue-400 font-semibold uppercase block">
-                    🎥 Tese Visual (Fotografia & Iluminação):
-                  </span>
-                  <p className="text-zinc-300 text-[11px] leading-relaxed">
-                    {teamOutput.creative_direction.visual_thesis}
-                  </p>
-                </div>
-              </div>
-
-              {/* Conflitos Resolvidos */}
-              {teamOutput.conflict_resolutions.length > 0 && (
-                <div className="bg-amber-500/[0.04] p-3 rounded-xl border border-amber-500/20 space-y-1.5">
-                  <span className="text-[10px] font-mono font-bold uppercase text-amber-400 flex items-center gap-1.5">
-                    <ShieldAlert className="w-3.5 h-3.5 text-amber-400" />
-                    <span>Conflito Físico Resolvido pelo Diretor Geral:</span>
-                  </span>
-                  {teamOutput.conflict_resolutions.map((c, i) => (
-                    <div key={i} className="text-[11px] text-zinc-300 space-y-0.5">
-                      <p className="text-amber-200/90 font-medium">• {c.conflict}</p>
-                      <p className="text-zinc-400 pl-3">↳ Solução: {c.resolution}</p>
+                        {/* Ações sugeridas */}
+                        {msg.suggestedActions && (
+                          <div className="flex flex-wrap gap-1.5 mt-2.5 pt-2 border-t border-white/[0.06]">
+                            {msg.suggestedActions.map((action, i) => (
+                              <button
+                                key={i}
+                                type="button"
+                                onClick={() => {
+                                  if (action.action === 'example_barber') {
+                                    handleSendMessage(
+                                      'Quero gravar um vídeo de 30 segundos para uma barbearia falando sobre cortes masculinos que estão em alta.'
+                                    );
+                                  } else if (action.action === 'example_testimonial') {
+                                    handleSendMessage(
+                                      'Quero gravar um depoimento de cliente institucional de 45 segundos mostrando a transformação real e a satisfação com nosso serviço.'
+                                    );
+                                  }
+                                }}
+                                className="py-1 px-2.5 bg-white/[0.04] hover:bg-white/[0.08] border border-white/10 rounded-lg text-[11px] font-mono text-zinc-300 hover:text-white transition-colors"
+                              >
+                                {action.label}
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                      </div>
                     </div>
-                  ))}
+                  );
+                })}
+
+                {isThinking && (
+                  <div className="flex items-center gap-2 text-xs font-mono text-amber-400 bg-amber-500/10 border border-amber-500/20 p-2.5 rounded-xl animate-pulse">
+                    <div className="w-3 h-3 rounded-full border-2 border-amber-400 border-t-transparent animate-spin" />
+                    <span>A equipe de IA está estruturando sua resposta...</span>
+                  </div>
+                )}
+
+                <div ref={chatBottomRef} />
+              </div>
+
+              {/* CARD DE REVISÃO E APROVAÇÃO DO ROTEIRO (APARECE QUANDO HOUVER ROTEIRO) */}
+              {currentScript && (
+                <div className="pt-2">
+                  <ScriptReviewCard
+                    script={currentScript}
+                    isApproved={isScriptApproved}
+                    onApprove={handleApproveScript}
+                    onRegenerate={handleRegenerateScript}
+                    onUpdateScript={handleUpdateScript}
+                    onRequestAdjustment={(prompt) => handleSendMessage(prompt)}
+                  />
                 </div>
               )}
 
-              {/* Alternativas de Set */}
-              <div className="space-y-1.5">
-                <span className="text-[10px] font-mono uppercase text-zinc-400 block">
-                  Alternativas para este Espaço:
-                </span>
-                {teamOutput.alternatives.map((alt, i) => (
-                  <div key={i} className="bg-black/30 p-2.5 rounded-xl border border-white/[0.06] text-[11px]">
-                    <span className="font-semibold text-white block mb-0.5">{alt.option_name}</span>
-                    <p className="text-zinc-400 leading-relaxed">{alt.description}</p>
-                    <p className="text-amber-300 font-mono text-[10px] mt-1">Ajuste: {alt.adjustments}</p>
-                  </div>
-                ))}
+              {/* BARRA DE ENTRADA CONVERSACIONAL: VOZ (ÁUDIO) OU TEXTO */}
+              <div className="pt-2 border-t border-white/[0.08]">
+                <VoiceInput
+                  onSendMessage={(text, isAudio) => handleSendMessage(text, isAudio)}
+                  disabled={isThinking}
+                  placeholder={
+                    currentScript
+                      ? 'Peça um ajuste (ex: muda o gancho, tom mais engraçado) ou fale "Aprovado"...'
+                      : 'Me conta o que você precisa gravar hoje (fale por áudio ou digite)...'
+                  }
+                />
               </div>
             </div>
           )}
 
-          {/* ABA 2: CRIADOR DE ROTEIRO */}
-          {activeTab === 'roteiro' && (
-            <div className="space-y-3 text-xs animate-fade-in">
-              <div className="flex items-center justify-between pb-2 border-b border-white/[0.06]">
-                <div className="flex items-center gap-2">
-                  <div className="w-2 h-2 rounded-full bg-purple-400" />
-                  <span className="font-bold text-white uppercase text-[11px] font-mono">
-                    CRIADOR DE ROTEIRO (Narrativa Humana)
-                  </span>
-                </div>
-                <span className="text-[10px] font-mono text-purple-400 bg-purple-500/10 border border-purple-500/25 px-2 py-0.5 rounded">
-                  {teamOutput.script_direction.scenes.length} CENAS
-                </span>
-              </div>
-
-              {/* Gancho & Pergunta Central */}
-              <div className="bg-purple-500/[0.04] p-3 rounded-xl border border-purple-500/20 space-y-1.5">
-                <span className="text-[10px] font-mono font-bold uppercase text-purple-400 block">
-                  Gancho Anti-Clichê (Primeiros 3s):
-                </span>
-                <p className="text-white font-medium text-xs italic leading-relaxed">
-                  {teamOutput.script_direction.hook}
-                </p>
-                <div className="pt-1 text-[11px] text-zinc-400">
-                  <span className="text-purple-300 font-mono">Pergunta Central: </span>
-                  {teamOutput.script_direction.central_question}
-                </div>
-              </div>
-
-              {/* Roteiro Cena a Cena */}
-              <div className="space-y-2.5 max-h-[380px] overflow-y-auto pr-1">
-                {teamOutput.script_direction.scenes.map((scene) => (
-                  <div
-                    key={scene.sceneNumber}
-                    className="p-3 bg-black/30 border border-white/[0.06] rounded-xl space-y-2 hover:border-white/15 transition-colors"
+          {/* ABA 2: DIRETOR GERAL */}
+          {activeTab === 'diretor_geral' && (
+            <div className="space-y-3.5 text-xs animate-fade-in">
+              {!isScriptApproved || !teamOutput ? (
+                <div className="bg-black/30 border border-white/10 rounded-xl p-6 text-center space-y-3">
+                  <Lock className="w-8 h-8 text-amber-400 mx-auto" />
+                  <h4 className="font-bold text-white text-xs uppercase font-mono">
+                    Aguardando Aprovação do Roteiro
+                  </h4>
+                  <p className="text-zinc-400 text-xs max-w-sm mx-auto leading-relaxed">
+                    O Diretor Geral sintetiza a visão executiva e alinha a equipe técnica após você aprovar a narrativa.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab('conversar')}
+                    className="py-2 px-4 bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 rounded-xl text-xs font-semibold"
                   >
-                    <div className="flex items-center justify-between">
-                      <span className="text-[10px] font-mono font-bold text-purple-400 uppercase">
-                        {scene.sceneName}
-                      </span>
-                      <span className="text-[10px] font-mono text-zinc-400 bg-white/[0.04] px-1.5 py-0.2 rounded">
-                        {scene.durationSec}s • {scene.shotType}
+                    Abrir Chat do Roteiro
+                  </button>
+                </div>
+              ) : (
+                <>
+                  <div className="flex items-center justify-between pb-2 border-b border-white/[0.06]">
+                    <div className="flex items-center gap-2">
+                      <div className="w-2 h-2 rounded-full bg-amber-400" />
+                      <span className="font-bold text-white uppercase text-[11px] font-mono">
+                        DIRETOR GERAL (Decisão Criativa)
                       </span>
                     </div>
+                    <span className="text-[10px] font-mono text-amber-400 bg-amber-500/10 border border-amber-500/25 px-2 py-0.5 rounded">
+                      LÍDER DA EQUIPE
+                    </span>
+                  </div>
 
-                    <div className="p-2.5 bg-black/40 rounded-lg border-l-2 border-purple-500 space-y-1">
-                      <span className="text-[9px] font-mono text-zinc-500 uppercase block">FALA / DIÁLOGO:</span>
-                      <p className="text-zinc-100 text-xs leading-relaxed font-medium">
-                        "{scene.dialogue}"
+                  {/* Resumo Executivo */}
+                  <div className="bg-black/30 p-3.5 rounded-xl border border-white/[0.06] space-y-1.5">
+                    <span className="text-[10px] font-mono font-semibold uppercase text-zinc-400 block">
+                      Síntese da Produção:
+                    </span>
+                    <p className="text-zinc-200 text-xs leading-relaxed">
+                      {teamOutput.creative_direction.executive_summary}
+                    </p>
+                  </div>
+
+                  {/* Teses dos Especialistas */}
+                  <div className="space-y-2">
+                    <div className="bg-black/20 p-3 rounded-xl border border-white/[0.05] space-y-1">
+                      <span className="text-[10px] font-mono text-purple-400 font-semibold uppercase block">
+                        📖 Tese Narrativa (Roteiro):
+                      </span>
+                      <p className="text-zinc-300 text-[11px] leading-relaxed">
+                        {teamOutput.creative_direction.narrative_thesis}
                       </p>
                     </div>
 
-                    <div className="text-[11px] space-y-1 text-zinc-400">
-                      <p><span className="text-zinc-500 font-mono">Ação Física:</span> {scene.action}</p>
-                      <p><span className="text-zinc-500 font-mono">Ideia Visual:</span> {scene.visualIdea}</p>
-                      <p><span className="text-zinc-500 font-mono">Intenção:</span> <span className="text-amber-300">{scene.emotionalIntention}</span></p>
+                    <div className="bg-black/20 p-3 rounded-xl border border-white/[0.05] space-y-1">
+                      <span className="text-[10px] font-mono text-blue-400 font-semibold uppercase block">
+                        🎥 Tese Visual (Fotografia & Iluminação):
+                      </span>
+                      <p className="text-zinc-300 text-[11px] leading-relaxed">
+                        {teamOutput.creative_direction.visual_thesis}
+                      </p>
                     </div>
                   </div>
-                ))}
 
-                {/* Chamada para Ação */}
-                <div className="p-3 bg-emerald-500/[0.04] border border-emerald-500/20 rounded-xl space-y-1">
-                  <span className="text-[10px] font-mono font-bold uppercase text-emerald-400 block">
-                    Chamada para Ação (CTA):
-                  </span>
-                  <p className="text-white text-xs leading-relaxed font-medium">
-                    {teamOutput.script_direction.cta}
-                  </p>
-                </div>
-              </div>
+                  {/* Conflitos Resolvidos */}
+                  {teamOutput.conflict_resolutions.length > 0 && (
+                    <div className="bg-amber-500/[0.04] p-3 rounded-xl border border-amber-500/20 space-y-1.5">
+                      <span className="text-[10px] font-mono font-bold uppercase text-amber-400 flex items-center gap-1.5">
+                        <ShieldAlert className="w-3.5 h-3.5 text-amber-400" />
+                        <span>Conflito Físico Resolvido pelo Diretor Geral:</span>
+                      </span>
+                      {teamOutput.conflict_resolutions.map((c, i) => (
+                        <div key={i} className="text-[11px] text-zinc-300 space-y-0.5">
+                          <p className="text-amber-200/90 font-medium">• {c.conflict}</p>
+                          <p className="text-zinc-400 pl-3">↳ Solução: {c.resolution}</p>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </>
+              )}
             </div>
           )}
 
           {/* ABA 3: DIRETOR DE CENA */}
           {activeTab === 'cena' && (
             <div className="space-y-3.5 text-xs animate-fade-in">
-              <div className="flex items-center justify-between pb-2 border-b border-white/[0.06]">
-                <div className="flex items-center gap-2">
-                  <div className="w-2 h-2 rounded-full bg-blue-400" />
-                  <span className="font-bold text-white uppercase text-[11px] font-mono">
-                    DIRETOR DE CENA (Corpo & Pessoas)
-                  </span>
-                </div>
-                <span className="text-[10px] font-mono text-blue-400 bg-blue-500/10 border border-blue-500/25 px-2 py-0.5 rounded">
-                  ATUAÇÃO NO SET
-                </span>
-              </div>
-
-              {/* Posicionamento Físico & Recuo de 1,5m */}
-              <div className="bg-black/30 p-3.5 rounded-xl border border-white/[0.06] space-y-2">
-                <div className="flex items-center justify-between font-mono text-[10px] text-zinc-400">
-                  <span className="text-blue-400 font-semibold">POSIÇÃO NO ESPAÇO</span>
-                  <span className="text-emerald-400 font-bold">1,5m DA PAREDE</span>
-                </div>
-                <p className="text-zinc-200 text-xs leading-relaxed">
-                  {teamOutput.scene_direction.subject_position.description}
-                </p>
-              </div>
-
-              {/* Orientação Corporal & Linha dos Olhos */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                <div className="bg-black/30 p-3 rounded-xl border border-white/[0.06] space-y-1">
-                  <span className="text-[10px] font-mono text-zinc-500 uppercase block">Orientação Corporal</span>
-                  <p className="text-zinc-200 text-[11px] leading-relaxed">
-                    {teamOutput.scene_direction.body_orientation}
+              {!isScriptApproved || !teamOutput ? (
+                <div className="bg-black/30 border border-white/10 rounded-xl p-6 text-center space-y-3">
+                  <Lock className="w-8 h-8 text-blue-400 mx-auto" />
+                  <h4 className="font-bold text-white text-xs uppercase font-mono">
+                    Diretor de Cena Bloqueado
+                  </h4>
+                  <p className="text-zinc-400 text-xs max-w-sm mx-auto leading-relaxed">
+                    O Diretor de Cena precisa do roteiro aprovado para posicionar os atores a 1,5m da parede e calcular a movimentação.
                   </p>
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab('conversar')}
+                    className="py-2 px-4 bg-blue-500/20 hover:bg-blue-500/30 text-blue-300 border border-blue-500/40 rounded-xl text-xs font-semibold"
+                  >
+                    Aprovar Roteiro no Chat
+                  </button>
                 </div>
+              ) : (
+                <>
+                  <div className="flex items-center justify-between pb-2 border-b border-white/[0.06]">
+                    <div className="flex items-center gap-2">
+                      <div className="w-2 h-2 rounded-full bg-blue-400" />
+                      <span className="font-bold text-white uppercase text-[11px] font-mono">
+                        DIRETOR DE CENA (Corpo & Pessoas)
+                      </span>
+                    </div>
+                    <span className="text-[10px] font-mono text-blue-400 bg-blue-500/10 border border-blue-500/25 px-2 py-0.5 rounded">
+                      ATUAÇÃO NO SET
+                    </span>
+                  </div>
 
-                <div className="bg-black/30 p-3 rounded-xl border border-white/[0.06] space-y-1">
-                  <span className="text-[10px] font-mono text-zinc-500 uppercase block">Linha de Olhar</span>
-                  <p className="text-zinc-200 text-[11px] leading-relaxed">
-                    {teamOutput.scene_direction.eye_line}
-                  </p>
-                </div>
-              </div>
+                  {/* Posicionamento Físico & Recuo de 1,5m */}
+                  <div className="bg-black/30 p-3.5 rounded-xl border border-white/[0.06] space-y-2">
+                    <div className="flex items-center justify-between font-mono text-[10px] text-zinc-400">
+                      <span className="text-blue-400 font-semibold">POSIÇÃO NO ESPAÇO</span>
+                      <span className="text-emerald-400 font-bold">1,5m DA PAREDE</span>
+                    </div>
+                    <p className="text-zinc-200 text-xs leading-relaxed">
+                      {teamOutput.scene_direction.subject_position.description}
+                    </p>
+                  </div>
 
-              {/* Movimentação e Bloqueio */}
-              <div className="bg-black/30 p-3.5 rounded-xl border border-white/[0.06] space-y-2">
-                <span className="text-[10px] font-mono font-semibold uppercase text-zinc-400 block">
-                  Movimentação & Bloqueio:
-                </span>
-                <p className="text-zinc-300 text-[11px] leading-relaxed">
-                  • Início: {teamOutput.scene_direction.movement.start_action}
-                </p>
-                <p className="text-zinc-300 text-[11px] leading-relaxed">
-                  • Fluxo: {teamOutput.scene_direction.movement.motion_flow}
-                </p>
-              </div>
+                  {/* Orientação Corporal & Linha dos Olhos */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    <div className="bg-black/30 p-3 rounded-xl border border-white/[0.06] space-y-1">
+                      <span className="text-[10px] font-mono text-zinc-500 uppercase block">Orientação Corporal</span>
+                      <p className="text-zinc-200 text-[11px] leading-relaxed">
+                        {teamOutput.scene_direction.body_orientation}
+                      </p>
+                    </div>
 
-              {/* Notas de Performance */}
-              <div className="bg-blue-500/[0.03] p-3.5 rounded-xl border border-blue-500/20 space-y-1.5">
-                <span className="text-[10px] font-mono font-semibold uppercase text-blue-400 block">
-                  Instruções para o Apresentador:
-                </span>
-                {teamOutput.scene_direction.performance_notes.map((note, idx) => (
-                  <p key={idx} className="text-zinc-300 text-[11px] leading-relaxed">
-                    • {note}
-                  </p>
-                ))}
-              </div>
+                    <div className="bg-black/30 p-3 rounded-xl border border-white/[0.06] space-y-1">
+                      <span className="text-[10px] font-mono text-zinc-500 uppercase block">Linha de Olhar</span>
+                      <p className="text-zinc-200 text-[11px] leading-relaxed">
+                        {teamOutput.scene_direction.eye_line}
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Movimentação e Bloqueio */}
+                  <div className="bg-black/30 p-3.5 rounded-xl border border-white/[0.06] space-y-2">
+                    <span className="text-[10px] font-mono font-semibold uppercase text-zinc-400 block">
+                      Movimentação & Bloqueio:
+                    </span>
+                    <p className="text-zinc-300 text-[11px] leading-relaxed">
+                      • Início: {teamOutput.scene_direction.movement.start_action}
+                    </p>
+                    <p className="text-zinc-300 text-[11px] leading-relaxed">
+                      • Fluxo: {teamOutput.scene_direction.movement.motion_flow}
+                    </p>
+                  </div>
+                </>
+              )}
             </div>
           )}
 
           {/* ABA 4: DIRETOR DE FOTOGRAFIA */}
           {activeTab === 'fotografia' && (
             <div className="space-y-3.5 text-xs animate-fade-in">
-              <div className="flex items-center justify-between pb-2 border-b border-white/[0.06]">
-                <div className="flex items-center gap-2">
-                  <div className="w-2 h-2 rounded-full bg-amber-400" />
-                  <span className="font-bold text-white uppercase text-[11px] font-mono">
-                    DIRETOR DE FOTOGRAFIA (Óptica & Luz)
-                  </span>
+              {!isScriptApproved || !teamOutput ? (
+                <div className="bg-black/30 border border-white/10 rounded-xl p-6 text-center space-y-3">
+                  <Lock className="w-8 h-8 text-amber-400 mx-auto" />
+                  <h4 className="font-bold text-white text-xs uppercase font-mono">
+                    Diretor de Fotografia Bloqueado
+                  </h4>
+                  <p className="text-zinc-400 text-xs max-w-sm mx-auto leading-relaxed">
+                    O Fotógrafo selecionará as lentes do seu kit real e montará a iluminação a 45° assim que o roteiro for aprovado.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab('conversar')}
+                    className="py-2 px-4 bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 rounded-xl text-xs font-semibold"
+                  >
+                    Aprovar Roteiro no Chat
+                  </button>
                 </div>
-                <span className="text-[10px] font-mono text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded">
-                  {teamOutput.cinematography_direction.lens.source === 'equipamento_proprio' ? 'SEU KIT REAL' : 'RECOMENDADO'}
-                </span>
-              </div>
+              ) : (
+                <>
+                  <div className="flex items-center justify-between pb-2 border-b border-white/[0.06]">
+                    <div className="flex items-center gap-2">
+                      <div className="w-2 h-2 rounded-full bg-amber-400" />
+                      <span className="font-bold text-white uppercase text-[11px] font-mono">
+                        DIRETOR DE FOTOGRAFIA (Óptica & Luz)
+                      </span>
+                    </div>
+                    <span className="text-[10px] font-mono text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded">
+                      {teamOutput.cinematography_direction.lens.source === 'equipamento_proprio' ? 'SEU KIT REAL' : 'RECOMENDADO'}
+                    </span>
+                  </div>
 
-              {/* Lente Escolhida do Kit */}
-              <div className="bg-black/30 p-3.5 rounded-xl border border-white/[0.06] space-y-2">
-                <div className="flex items-center justify-between font-mono text-[10px] text-zinc-500">
-                  <span>LENTE ESCOLHIDA DO SEU KIT</span>
-                  <span className="text-amber-400 font-bold">{teamOutput.cinematography_direction.lens.focal_length_mm}mm</span>
-                </div>
-                <h4 className="font-semibold text-white text-sm">
-                  {teamOutput.cinematography_direction.lens.model}
-                </h4>
-                <p className="text-[11px] text-zinc-300 leading-relaxed">
-                  {teamOutput.cinematography_direction.lens.choice_reason}
-                </p>
-                <div className="flex items-center gap-3 pt-1 text-[10px] font-mono text-zinc-400">
-                  <span>Abertura: {teamOutput.cinematography_direction.camera.settings.aperture}</span>
-                  <span>Obturador: {teamOutput.cinematography_direction.camera.settings.shutter}</span>
-                  <span>FPS: {teamOutput.cinematography_direction.camera.settings.fps}</span>
-                </div>
-              </div>
+                  {/* Lente Escolhida do Kit */}
+                  <div className="bg-black/30 p-3.5 rounded-xl border border-white/[0.06] space-y-2">
+                    <div className="flex items-center justify-between font-mono text-[10px] text-zinc-500">
+                      <span>LENTE ESCOLHIDA DO SEU KIT</span>
+                      <span className="text-amber-400 font-bold">{teamOutput.cinematography_direction.lens.focal_length_mm}mm</span>
+                    </div>
+                    <h4 className="font-semibold text-white text-sm">
+                      {teamOutput.cinematography_direction.lens.model}
+                    </h4>
+                    <p className="text-[11px] text-zinc-300 leading-relaxed">
+                      {teamOutput.cinematography_direction.lens.choice_reason}
+                    </p>
+                  </div>
 
-              {/* Iluminação Principal a 45° */}
-              <div className="bg-black/30 p-3.5 rounded-xl border border-white/[0.06] space-y-2">
-                <div className="flex items-center justify-between font-mono text-[10px] text-zinc-500">
-                  <span>LUZ PRINCIPAL (KEY LIGHT)</span>
-                  <span className="text-amber-400 font-bold">ÂNGULO 45°</span>
-                </div>
-                <h4 className="font-medium text-white text-xs">
-                  {teamOutput.cinematography_direction.lighting.key_light.equipment_used}
-                </h4>
-                <p className="text-[11px] text-zinc-400 leading-relaxed">
-                  Altura {teamOutput.cinematography_direction.lighting.key_light.height} com {teamOutput.cinematography_direction.lighting.key_light.modifier}.
-                </p>
-                <p className="text-[10px] font-mono text-zinc-400">
-                  Distância da parede: {teamOutput.cinematography_direction.lighting.key_light.distance_to_wall_m}m (Sombra suave calculada).
-                </p>
+                  {/* Iluminação Principal a 45° */}
+                  <div className="bg-black/30 p-3.5 rounded-xl border border-white/[0.06] space-y-2">
+                    <div className="flex items-center justify-between font-mono text-[10px] text-zinc-500">
+                      <span>LUZ PRINCIPAL (KEY LIGHT)</span>
+                      <span className="text-amber-400 font-bold">ÂNGULO 45°</span>
+                    </div>
+                    <h4 className="font-medium text-white text-xs">
+                      {teamOutput.cinematography_direction.lighting.key_light.equipment_used}
+                    </h4>
+                    <p className="text-[11px] text-zinc-400 leading-relaxed">
+                      Altura {teamOutput.cinematography_direction.lighting.key_light.height} com {teamOutput.cinematography_direction.lighting.key_light.modifier}.
+                    </p>
+                    <p className="text-[10px] font-mono text-zinc-400">
+                      Distância da parede: {teamOutput.cinematography_direction.lighting.key_light.distance_to_wall_m}m (Sombra suave calculada).
+                    </p>
 
-                <button
-                  type="button"
-                  onClick={() => setIsLightingPreviewOpen(true)}
-                  className="w-full mt-2 py-2 px-3 bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 border border-amber-500/25 rounded-xl text-xs font-mono flex items-center justify-center gap-2 transition-colors"
-                >
-                  <SunMedium className="w-3.5 h-3.5 text-amber-400" />
-                  <span>Ver Simulação 3D Desta Luz na Sua Foto</span>
-                </button>
-              </div>
-
-              {/* Luz de Recorte & Profundidade */}
-              <div className="bg-black/30 p-3 rounded-xl border border-white/[0.06] space-y-1">
-                <span className="font-mono text-[10px] text-zinc-500 block">SEPARAÇÃO DE PROFUNDIDADE:</span>
-                <p className="text-[11px] text-zinc-300 leading-relaxed">
-                  {teamOutput.cinematography_direction.depth.separation_strategy}
-                </p>
-              </div>
+                    <button
+                      type="button"
+                      onClick={() => setIsLightingPreviewOpen(true)}
+                      className="w-full mt-2 py-2 px-3 bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 border border-amber-500/25 rounded-xl text-xs font-mono flex items-center justify-center gap-2 transition-colors"
+                    >
+                      <SunMedium className="w-3.5 h-3.5 text-amber-400" />
+                      <span>Ver Simulação 3D Desta Luz na Sua Foto</span>
+                    </button>
+                  </div>
+                </>
+              )}
             </div>
           )}
 
-          {/* ABA 5: PLANO DE TAKES & CHECKLIST */}
+          {/* ABA 5: PLANO DE TAKES */}
           {activeTab === 'takes' && (
             <div className="space-y-3.5 text-xs animate-fade-in">
-              <div className="flex items-center justify-between pb-2 border-b border-white/[0.06]">
-                <span className="font-bold text-white uppercase text-[11px] font-mono">
-                  Plano Operacional de Takes
-                </span>
-                <span className="text-[11px] font-mono text-zinc-400">
-                  {doneTakes.length}/{teamOutput.takes.length} gravados
-                </span>
-              </div>
+              {!isScriptApproved || !teamOutput ? (
+                <div className="bg-black/30 border border-white/10 rounded-xl p-6 text-center space-y-3">
+                  <Lock className="w-8 h-8 text-purple-400 mx-auto" />
+                  <h4 className="font-bold text-white text-xs uppercase font-mono">
+                    Plano de Takes Aguardando Roteiro
+                  </h4>
+                  <p className="text-zinc-400 text-xs max-w-sm mx-auto leading-relaxed">
+                    Os takes operacionais são desmembrados diretamente das cenas do roteiro aprovado.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab('conversar')}
+                    className="py-2 px-4 bg-purple-500/20 hover:bg-purple-500/30 text-purple-300 border border-purple-500/40 rounded-xl text-xs font-semibold"
+                  >
+                    Aprovar Roteiro no Chat
+                  </button>
+                </div>
+              ) : (
+                <>
+                  <div className="flex items-center justify-between pb-2 border-b border-white/[0.06]">
+                    <span className="font-bold text-white uppercase text-[11px] font-mono">
+                      Plano Operacional de Takes
+                    </span>
+                    <span className="text-[11px] font-mono text-zinc-400">
+                      {doneTakes.length}/{teamOutput.takes.length} gravados
+                    </span>
+                  </div>
 
-              <div className="space-y-2 max-h-[360px] overflow-y-auto pr-1">
-                {teamOutput.takes.map((take) => {
-                  const isDone = doneTakes.includes(take.sceneNumber);
+                  <div className="space-y-2 max-h-[360px] overflow-y-auto pr-1">
+                    {teamOutput.takes.map((take) => {
+                      const isDone = doneTakes.includes(take.sceneNumber);
 
-                  return (
-                    <div
-                      key={take.sceneNumber}
-                      onClick={() => toggleTake(take.sceneNumber)}
-                      className={cn(
-                        'p-3 rounded-xl border transition-all cursor-pointer select-none',
-                        isDone
-                          ? 'bg-emerald-500/[0.05] border-emerald-500/30'
-                          : 'bg-black/30 border-white/[0.06] hover:border-white/20'
-                      )}
-                    >
-                      <div className="flex items-center justify-between mb-1">
-                        <span className="text-[10px] font-mono font-semibold text-zinc-400 uppercase">
-                          CENA 0{take.sceneNumber} • {take.framing}
-                        </span>
+                      return (
                         <div
+                          key={take.sceneNumber}
+                          onClick={() => toggleTake(take.sceneNumber)}
                           className={cn(
-                            'w-4 h-4 rounded flex items-center justify-center text-xs',
-                            isDone ? 'bg-emerald-400 text-zinc-950' : 'border border-zinc-600'
+                            'p-3 rounded-xl border transition-all cursor-pointer select-none',
+                            isDone
+                              ? 'bg-emerald-500/[0.05] border-emerald-500/30'
+                              : 'bg-black/30 border-white/[0.06] hover:border-white/20'
                           )}
                         >
-                          {isDone && <CheckCircle2 className="w-3 h-3 stroke-[3]" />}
+                          <div className="flex items-center justify-between mb-1">
+                            <span className="text-[10px] font-mono font-semibold text-zinc-400 uppercase">
+                              CENA 0{take.sceneNumber} • {take.framing}
+                            </span>
+                            <div
+                              className={cn(
+                                'w-4 h-4 rounded flex items-center justify-center text-xs',
+                                isDone ? 'bg-emerald-400 text-zinc-950' : 'border border-zinc-600'
+                              )}
+                            >
+                              {isDone && <CheckCircle2 className="w-3 h-3 stroke-[3]" />}
+                            </div>
+                          </div>
+
+                          <h4
+                            className={cn(
+                              'font-medium text-white mb-1',
+                              isDone && 'line-through text-zinc-500'
+                            )}
+                          >
+                            {take.title}
+                          </h4>
+
+                          <p className="text-[11px] text-zinc-400 leading-relaxed">
+                            {take.description}
+                          </p>
                         </div>
-                      </div>
-
-                      <h4
-                        className={cn(
-                          'font-medium text-white mb-1',
-                          isDone && 'line-through text-zinc-500'
-                        )}
-                      >
-                        {take.title}
-                      </h4>
-
-                      <p className="text-[11px] text-zinc-400 leading-relaxed">
-                        {take.description}
-                      </p>
-                    </div>
-                  );
-                })}
-              </div>
-
-              {/* Checklist de Segurança Técnica */}
-              <div className="pt-2 border-t border-white/[0.06] space-y-2">
-                <span className="text-[10px] font-mono font-bold uppercase text-zinc-400 block">
-                  Checklist Rápido de Set:
-                </span>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
-                  {checks.slice(0, 4).map((c) => (
-                    <button
-                      key={c.id}
-                      type="button"
-                      onClick={() => toggleCheck(c.id)}
-                      className={cn(
-                        'p-2 rounded-lg border text-left text-[11px] flex items-center gap-2 transition-colors',
-                        c.done ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-300' : 'bg-black/20 border-white/[0.05] text-zinc-400'
-                      )}
-                    >
-                      <CheckCircle2 className={cn('w-3.5 h-3.5 shrink-0', c.done ? 'text-emerald-400' : 'text-zinc-600')} />
-                      <span className="line-clamp-1">{c.label}</span>
-                    </button>
-                  ))}
-                </div>
-              </div>
+                      );
+                    })}
+                  </div>
+                </>
+              )}
             </div>
           )}
-
-          {/* 4. BARRA DE REFINAMENTO INTERATIVO COM O DIRETOR GERAL */}
-          <div className="pt-3 border-t border-white/[0.08] space-y-2">
-            <span className="text-[10px] font-mono uppercase text-zinc-500 block">
-              Ajuste Rápido com o Diretor Geral:
-            </span>
-            <div className="flex flex-wrap gap-1.5">
-              {[
-                { label: '🎬 Mais Cinema', prompt: 'Mais cinematográfico com luz de recorte dramática e maior separação' },
-                { label: '☀️ Luz Suave', prompt: 'Iluminação mais difusa e natural, sem sombras marcadas' },
-                { label: '📐 Espaço Reduzido', prompt: 'Tenho pouco espaço na sala, aproximar câmera e luz para setup compacto' },
-                { label: '💡 Apenas 1 Luz', prompt: 'Estou com apenas 1 tripé de iluminação disponível no set' },
-              ].map((btn, idx) => (
-                <button
-                  key={idx}
-                  type="button"
-                  onClick={() => handleApplyRefinement(btn.prompt)}
-                  className="px-2.5 py-1 rounded-lg bg-white/[0.04] hover:bg-white/[0.08] border border-white/10 text-zinc-300 hover:text-white text-[11px] font-mono transition-colors"
-                >
-                  {btn.label}
-                </button>
-              ))}
-            </div>
-
-            {/* Input customizado para falar com a equipe de IA */}
-            <form
-              onSubmit={(e) => {
-                e.preventDefault();
-                if (userFeedbackInput.trim()) {
-                  handleApplyRefinement(userFeedbackInput.trim());
-                }
-              }}
-              className="flex items-center gap-2 pt-1"
-            >
-              <input
-                type="text"
-                value={userFeedbackInput}
-                onChange={(e) => setUserFeedbackInput(e.target.value)}
-                placeholder="Pedir ajuste à equipe (ex: fala mais curta, mudar lado da luz)..."
-                className="flex-1 bg-black/40 border border-white/10 rounded-xl px-3 py-2 text-xs text-white placeholder-zinc-500 focus:outline-none focus:border-amber-500/50"
-              />
-              <button
-                type="submit"
-                disabled={!userFeedbackInput.trim()}
-                className="py-2 px-3 bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 rounded-xl text-xs font-medium disabled:opacity-40 transition-colors shrink-0"
-              >
-                <Send className="w-3.5 h-3.5" />
-              </button>
-            </form>
-          </div>
         </div>
       </div>
 
@@ -965,7 +1220,7 @@ export default function DirectorPage() {
     <Suspense
       fallback={
         <div className="flex items-center justify-center min-h-[50vh] text-zinc-500 font-mono text-xs">
-          Carregando Diretor Técnico e Equipe de IA...
+          Carregando Diretor Criativo e Equipe de IA...
         </div>
       }
     >
