@@ -204,16 +204,22 @@ function DirectorContent() {
               />
             </label>
 
-            {/* BOTÃO DE PREVIEW DE ILUMINAÇÃO ARTIFICIAL */}
-            <button
-              type="button"
-              onClick={() => setIsLightingPreviewOpen(true)}
-              className="py-2.5 px-3.5 bg-amber-500/15 hover:bg-amber-500/25 text-amber-300 font-semibold rounded-xl border border-amber-500/30 flex items-center gap-2 transition-all active:scale-95 shadow-sm"
-              title="Ver projeção de luz artificial na foto do ambiente"
-            >
-              <SunMedium className="w-4 h-4 text-amber-400" />
-              <span>Preview de Iluminação</span>
-            </button>
+            {/* BOTÃO DE PREVIEW DE ILUMINAÇÃO ARTIFICIAL (Apenas após subir a foto) */}
+            {photoUrl ? (
+              <button
+                type="button"
+                onClick={() => setIsLightingPreviewOpen(true)}
+                className="py-2.5 px-4 bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 font-semibold rounded-xl border border-amber-500/40 flex items-center gap-2 transition-all active:scale-95 shadow-lg shadow-amber-500/10 animate-fade-in"
+                title="Gerar preview fotorrealista com IA e profundidade 3D na foto real"
+              >
+                <SunMedium className="w-4 h-4 text-amber-400" />
+                <span>Preview IA (Profundidade Real)</span>
+              </button>
+            ) : (
+              <div className="hidden sm:flex items-center gap-1.5 px-3 py-2 text-[11px] text-zinc-500 font-mono bg-white/[0.02] border border-white/[0.05] rounded-xl">
+                <span>Fotografe o espaço para liberar o Preview 3D</span>
+              </div>
+            )}
 
             {blockedZones.length > 0 && (
               <button

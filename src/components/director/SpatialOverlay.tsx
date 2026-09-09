@@ -59,16 +59,16 @@ export function SpatialOverlay({
           </div>
         </div>
 
-        {/* Botão Flutuante de Atalho para Preview de Luz Artificial */}
-        {onOpenLightingPreview && (
+        {/* Botão Flutuante de Atalho para Preview de Luz Artificial (Apenas quando a foto for enviada) */}
+        {photoUrl && onOpenLightingPreview && (
           <button
             type="button"
             onClick={onOpenLightingPreview}
-            className="absolute bottom-3 right-3 z-30 px-3 py-1.5 bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/40 text-amber-300 rounded-xl text-[11px] font-mono flex items-center gap-1.5 backdrop-blur-md shadow-lg transition-all active:scale-95"
-            title="Ver como a luz artificial vai incidir na foto"
+            className="absolute bottom-3 right-3 z-30 px-3.5 py-2 bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/40 text-amber-300 rounded-xl text-[11px] font-mono flex items-center gap-2 backdrop-blur-md shadow-lg transition-all active:scale-95"
+            title="Gerar Preview com IA e Profundidade 3D na foto do ambiente"
           >
             <SunMedium className="w-3.5 h-3.5 text-amber-400" />
-            <span>Simular Luz na Foto</span>
+            <span>Preview IA com Profundidade 3D</span>
           </button>
         )}
 

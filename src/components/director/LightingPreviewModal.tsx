@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import {
   SunMedium,
   Sparkles,
@@ -12,12 +12,16 @@ import {
   Download,
   Check,
   Zap,
+  Camera,
+  CheckCircle2,
   Maximize2,
+  Info,
+  Split,
+  ChevronRight,
 } from 'lucide-react';
 import { AIDirectorSpatialData } from '@/lib/ai/types';
+import { processPhysicallyBasedRelight, Relight3DParameters } from '@/lib/ai/depth-engine';
 import { cn } from '@/lib/utils';
-
-export type LightingPreset = 'key_45' | 'softbox' | 'rim_back' | 'split_90' | 'teal_orange';
 
 interface LightingPreviewModalProps {
   isOpen: boolean;
@@ -26,487 +30,628 @@ interface LightingPreviewModalProps {
   spatialData: AIDirectorSpatialData;
 }
 
+export type ViewMode = 'relight' | 'split' | 'depth' | 'original';
+
 export function LightingPreviewModal({
   isOpen,
   onClose,
   photoUrl,
   spatialData,
 }: LightingPreviewModalProps) {
-  const [selectedPreset, setSelectedPreset] = useState<LightingPreset>('key_45');
-  const [intensity, setIntensity] = useState<number>(75);
-  const [beamSpread, setBeamSpread] = useState<number>(55); // Difusão do feixe
-  const [colorTemp, setColorTemp] = useState<'3200K' | '4300K' | '5600K' | 'cyan' | 'amber'>('5600K');
-  const [showOriginal, setShowOriginal] = useState<boolean>(false);
-  const [lightPos, setLightPos] = useState<{ x: number; y: number }>({ x: 30, y: 35 });
-  const [targetPos, setTargetPos] = useState<{ x: number; y: number }>({ x: 50, y: 55 });
+  // Parâmetros de iluminação física e espacial
+  const [params, setParams] = useState<Relight3DParameters>({
+    keyLightDistanceToWall: 1.5,
+    keyLightHeight: 1.85,
+    keyLightAngle: 45,
+    keyLightSide: 'left',
+    softboxDiameterCm: 90,
+    intensity: 80,
+    colorTemp: '5600K',
+    enableRimLight: true,
+    enableFillLight: true,
+    enableCastShadow: true,
+    enableVolumetricHaze: true,
+    subjectDistanceCam: 2.2,
+    backWallDistanceCam: 3.7,
+  });
+
+  const [viewMode, setViewMode] = useState<ViewMode>('relight');
+  const [splitPosition, setSplitPosition] = useState<number>(50); // 0 a 100%
+  const [isProcessing, setIsProcessing] = useState<boolean>(false);
+  const [renderedFinalUrl, setRenderedFinalUrl] = useState<string | null>(null);
+  const [renderedDepthUrl, setRenderedDepthUrl] = useState<string | null>(null);
+  const [spatialMetrics, setSpatialMetrics] = useState<{
+    cameraDepthMeters: number;
+    subjectDepthMeters: number;
+    keyLightDepthMeters: number;
+    wallDepthMeters: number;
+    wallClearanceMeters: number;
+  } | null>(null);
 
   const containerRef = useRef<HTMLDivElement>(null);
+  const isDraggingSplit = useRef<boolean>(false);
 
-  // Inicializa posição da luz baseada nos dados calculados pela IA
+  // Executa o processamento do PBR Engine quando a foto ou os parâmetros mudarem
+  const runRelightSimulation = useCallback(async () => {
+    if (!photoUrl) return;
+    setIsProcessing(true);
+
+    try {
+      const img = new Image();
+      img.crossOrigin = 'anonymous';
+      img.src = photoUrl;
+
+      await new Promise<void>((resolve, reject) => {
+        img.onload = () => resolve();
+        img.onerror = () => reject(new Error('Erro ao carregar a imagem'));
+      });
+
+      const { finalCanvas, depthCanvas, metrics } = await processPhysicallyBasedRelight(img, params);
+      setRenderedFinalUrl(finalCanvas.toDataURL('image/jpeg', 0.95));
+      setRenderedDepthUrl(depthCanvas.toDataURL('image/png'));
+      setSpatialMetrics(metrics);
+    } catch (err) {
+      console.error('Erro ao renderizar relighting 3D:', err);
+    } finally {
+      setIsProcessing(false);
+    }
+  }, [photoUrl, params]);
+
   useEffect(() => {
-    const keyLight = spatialData.elements.find(
-      (e) => e.id === 'key-light' || e.type === 'key_light' || e.type === 'fill_light'
-    );
-    const person = spatialData.elements.find((e) => e.id === 'person' || e.type === 'subject');
-
-    if (keyLight) {
-      setLightPos({ x: keyLight.x, y: keyLight.y });
+    if (isOpen && photoUrl) {
+      runRelightSimulation();
     }
-    if (person) {
-      setTargetPos({ x: person.x, y: person.y });
-    }
-  }, [spatialData]);
+  }, [isOpen, photoUrl, runRelightSimulation]);
 
-  // Atualiza parâmetros quando o preset muda
-  const applyPreset = (preset: LightingPreset) => {
-    setSelectedPreset(preset);
-    switch (preset) {
+  // Aplicação de Presets Cinematográficos
+  const handleApplyPreset = (presetKey: 'key_45' | 'warm_3200' | 'bicolor_cinema' | 'split_90') => {
+    switch (presetKey) {
       case 'key_45':
-        setLightPos({ x: 28, y: 32 });
-        setBeamSpread(50);
-        setColorTemp('5600K');
-        setIntensity(80);
+        setParams((p) => ({
+          ...p,
+          keyLightAngle: 45,
+          keyLightSide: 'left',
+          colorTemp: '5600K',
+          intensity: 80,
+          softboxDiameterCm: 90,
+          enableRimLight: true,
+          enableCastShadow: true,
+          keyLightDistanceToWall: 1.5,
+        }));
         break;
-      case 'softbox':
-        setLightPos({ x: 38, y: 38 });
-        setBeamSpread(75);
-        setColorTemp('4300K');
-        setIntensity(65);
+      case 'warm_3200':
+        setParams((p) => ({
+          ...p,
+          keyLightAngle: 40,
+          keyLightSide: 'left',
+          colorTemp: '3200K',
+          intensity: 85,
+          softboxDiameterCm: 90,
+          enableRimLight: true,
+          enableCastShadow: true,
+          keyLightDistanceToWall: 1.5,
+        }));
         break;
-      case 'rim_back':
-        setLightPos({ x: 72, y: 22 });
-        setBeamSpread(35);
-        setColorTemp('5600K');
-        setIntensity(90);
+      case 'bicolor_cinema':
+        setParams((p) => ({
+          ...p,
+          keyLightAngle: 45,
+          keyLightSide: 'left',
+          colorTemp: 'bicolor',
+          intensity: 90,
+          softboxDiameterCm: 90,
+          enableRimLight: true,
+          enableCastShadow: true,
+          keyLightDistanceToWall: 1.5,
+        }));
         break;
       case 'split_90':
-        setLightPos({ x: 15, y: 50 });
-        setBeamSpread(40);
-        setColorTemp('3200K');
-        setIntensity(85);
-        break;
-      case 'teal_orange':
-        setLightPos({ x: 25, y: 30 });
-        setBeamSpread(55);
-        setColorTemp('amber');
-        setIntensity(80);
+        setParams((p) => ({
+          ...p,
+          keyLightAngle: 85,
+          keyLightSide: 'left',
+          colorTemp: '5600K',
+          intensity: 95,
+          softboxDiameterCm: 60,
+          enableRimLight: true,
+          enableCastShadow: true,
+          keyLightDistanceToWall: 1.5,
+        }));
         break;
     }
+  };
+
+  // Controle de arrasto do comparador Split
+  const handleSplitMouseMove = (e: React.MouseEvent<HTMLDivElement> | React.TouchEvent<HTMLDivElement>) => {
+    if (!isDraggingSplit.current || !containerRef.current) return;
+    const rect = containerRef.current.getBoundingClientRect();
+    const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX;
+    const pos = Math.max(5, Math.min(95, ((clientX - rect.left) / rect.width) * 100));
+    setSplitPosition(pos);
+  };
+
+  const handleDownload = () => {
+    if (!renderedFinalUrl) return;
+    const link = document.createElement('a');
+    link.href = renderedFinalUrl;
+    link.download = 'cinemaker-pro-preview-iluminacao.jpg';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
   };
 
   if (!isOpen) return null;
 
-  // Cor da luz de acordo com Kelvin/RGB
-  const getLightColor = () => {
-    switch (colorTemp) {
-      case '3200K':
-        return {
-          glow: 'rgba(255, 180, 100, 0.9)',
-          beam: 'rgba(255, 195, 130, 0.55)',
-          ambient: 'rgba(255, 160, 80, 0.15)',
-          name: '3200K (Tungstênio Quente)',
-        };
-      case '4300K':
-        return {
-          glow: 'rgba(255, 235, 205, 0.9)',
-          beam: 'rgba(255, 240, 220, 0.55)',
-          ambient: 'rgba(255, 220, 180, 0.12)',
-          name: '4300K (Branco Neutro)',
-        };
-      case '5600K':
-        return {
-          glow: 'rgba(230, 245, 255, 0.95)',
-          beam: 'rgba(215, 240, 255, 0.58)',
-          ambient: 'rgba(200, 230, 255, 0.15)',
-          name: '5600K (Luz do Dia / Daylight)',
-        };
-      case 'cyan':
-        return {
-          glow: 'rgba(0, 240, 255, 0.95)',
-          beam: 'rgba(0, 220, 245, 0.6)',
-          ambient: 'rgba(0, 200, 255, 0.2)',
-          name: 'Ciano Cinema (Teal Accent)',
-        };
-      case 'amber':
-        return {
-          glow: 'rgba(255, 140, 30, 0.95)',
-          beam: 'rgba(255, 160, 50, 0.65)',
-          ambient: 'rgba(255, 120, 20, 0.22)',
-          name: 'Âmbar Dourado (Sunset)',
-        };
-    }
-  };
-
-  const currentColors = getLightColor();
-
-  // Movimentação interativa da luz ao clicar no container
-  const handleImageClick = (e: React.MouseEvent<HTMLDivElement>) => {
-    if (!containerRef.current) return;
-    const rect = containerRef.current.getBoundingClientRect();
-    const x = Math.max(5, Math.min(95, ((e.clientX - rect.left) / rect.width) * 100));
-    const y = Math.max(5, Math.min(95, ((e.clientY - rect.top) / rect.height) * 100));
-    setLightPos({ x: Math.round(x), y: Math.round(y) });
-  };
-
   return (
-    <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-3 sm:p-5 overflow-y-auto">
-      <div className="bg-[#0f1117] border border-white/[0.1] rounded-2xl w-full max-w-5xl shadow-2xl overflow-hidden flex flex-col max-h-[92vh]">
+    <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-2 sm:p-4 overflow-y-auto">
+      <div className="bg-[#0f1117] border border-white/[0.1] rounded-2xl w-full max-w-6xl shadow-2xl overflow-hidden flex flex-col max-h-[94vh]">
         {/* Header da Simulação */}
-        <div className="p-4 border-b border-white/[0.08] flex items-center justify-between bg-[#13151d]">
+        <div className="p-3.5 sm:p-4 border-b border-white/[0.08] flex items-center justify-between bg-[#13151d]">
           <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl bg-amber-500/15 border border-amber-500/30 flex items-center justify-center text-amber-300">
+            <div className="w-9 h-9 rounded-xl bg-amber-500/15 border border-amber-500/30 flex items-center justify-center text-amber-300 shrink-0">
               <SunMedium className="w-5 h-5" />
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <h3 className="text-sm font-semibold text-white">
-                  Simulação de Luz Artificial no Ambiente
+                <h3 className="text-sm font-semibold text-white tracking-tight">
+                  Simulação de Luz Real com Profundidade 3D
                 </h3>
-                <span className="bg-amber-500/15 text-amber-300 border border-amber-500/25 text-[10px] font-mono px-2 py-0.2 rounded uppercase">
-                  Preview Físico
+                <span className="bg-emerald-500/15 text-emerald-300 border border-emerald-500/25 text-[10px] font-mono px-2 py-0.5 rounded">
+                  PBR ENGINE • POV CÂMERA
                 </span>
               </div>
-              <p className="text-[11px] text-zinc-400 font-mono">
-                Visualize a iluminação projetada sobre a foto real antes de montar os tripés.
+              <p className="text-[11px] text-zinc-400">
+                A foto representa o ponto de vista da câmera. A luz é calculada na profundidade real do espaço físico.
               </p>
             </div>
           </div>
 
-          <button
-            type="button"
-            onClick={onClose}
-            className="w-8 h-8 rounded-lg bg-white/[0.05] hover:bg-white/[0.1] border border-white/10 flex items-center justify-center text-zinc-400 hover:text-white transition-colors"
-          >
-            <X className="w-4 h-4" />
-          </button>
+          <div className="flex items-center gap-2">
+            {renderedFinalUrl && (
+              <button
+                type="button"
+                onClick={handleDownload}
+                className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 bg-white/[0.05] hover:bg-white/[0.1] border border-white/10 rounded-xl text-xs text-zinc-300 hover:text-white transition-colors"
+                title="Baixar imagem iluminada em alta resolução"
+              >
+                <Download className="w-3.5 h-3.5" />
+                <span>Salvar Foto</span>
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={onClose}
+              className="w-8 h-8 rounded-lg bg-white/[0.05] hover:bg-white/[0.1] border border-white/10 flex items-center justify-center text-zinc-400 hover:text-white transition-colors"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
         </div>
 
-        {/* Corpo Principal: Viewfinder com Luz + Controles Laterais */}
+        {/* Corpo Principal: Viewport 3D + Painel de Controle Físico */}
         <div className="grid grid-cols-1 lg:grid-cols-12 flex-1 overflow-y-auto divide-y lg:divide-y-0 lg:divide-x divide-white/[0.08]">
-          {/* LADO ESQUERDO: Imagem com Projeção da Luz (7 colunas) */}
-          <div className="lg:col-span-8 p-4 sm:p-5 flex flex-col gap-3 justify-center items-center bg-[#090a0f]">
+          {/* LADO ESQUERDO: Viewport com Render e Comparador Split (8 colunas) */}
+          <div className="lg:col-span-8 p-3 sm:p-5 flex flex-col gap-3 justify-center items-center bg-[#090a0f]">
+            {/* Seletor de Modo de Visualização */}
+            <div className="w-full flex items-center justify-between gap-2">
+              <div className="flex items-center gap-1 bg-white/[0.04] p-1 rounded-xl border border-white/10 text-xs font-mono">
+                <button
+                  type="button"
+                  onClick={() => setViewMode('relight')}
+                  className={cn(
+                    'px-2.5 py-1 rounded-lg transition-colors flex items-center gap-1.5',
+                    viewMode === 'relight'
+                      ? 'bg-amber-500/20 text-amber-300 font-semibold border border-amber-500/30'
+                      : 'text-zinc-400 hover:text-white'
+                  )}
+                >
+                  <SunMedium className="w-3.5 h-3.5" />
+                  <span>Preview 3D</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setViewMode('split')}
+                  className={cn(
+                    'px-2.5 py-1 rounded-lg transition-colors flex items-center gap-1.5',
+                    viewMode === 'split'
+                      ? 'bg-white text-zinc-950 font-semibold'
+                      : 'text-zinc-400 hover:text-white'
+                  )}
+                >
+                  <Split className="w-3.5 h-3.5" />
+                  <span>Antes / Depois</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setViewMode('depth')}
+                  className={cn(
+                    'px-2.5 py-1 rounded-lg transition-colors flex items-center gap-1.5',
+                    viewMode === 'depth'
+                      ? 'bg-white text-zinc-950 font-semibold'
+                      : 'text-zinc-400 hover:text-white'
+                  )}
+                >
+                  <Layers className="w-3.5 h-3.5" />
+                  <span>Mapa de Profundidade</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setViewMode('original')}
+                  className={cn(
+                    'px-2.5 py-1 rounded-lg transition-colors flex items-center gap-1.5',
+                    viewMode === 'original'
+                      ? 'bg-white text-zinc-950 font-semibold'
+                      : 'text-zinc-400 hover:text-white'
+                  )}
+                >
+                  <Eye className="w-3.5 h-3.5" />
+                  <span>Original</span>
+                </button>
+              </div>
+
+              {isProcessing && (
+                <div className="flex items-center gap-2 text-xs font-mono text-amber-400 bg-amber-500/10 px-2.5 py-1 rounded-lg border border-amber-500/20">
+                  <div className="w-2.5 h-2.5 rounded-full border-2 border-amber-400 border-t-transparent animate-spin" />
+                  <span>Calculando 3D...</span>
+                </div>
+              )}
+            </div>
+
+            {/* Container da Imagem com Viewport de Profundidade */}
             <div
               ref={containerRef}
-              onClick={handleImageClick}
-              className="relative w-full aspect-[4/3] sm:aspect-[16/10] rounded-2xl overflow-hidden border border-white/15 cursor-crosshair select-none shadow-2xl group"
+              onMouseDown={() => {
+                if (viewMode === 'split') isDraggingSplit.current = true;
+              }}
+              onMouseUp={() => {
+                isDraggingSplit.current = false;
+              }}
+              onMouseLeave={() => {
+                isDraggingSplit.current = false;
+              }}
+              onMouseMove={handleSplitMouseMove}
+              onTouchMove={handleSplitMouseMove}
+              className="relative w-full aspect-[4/3] sm:aspect-[16/10] rounded-2xl overflow-hidden border border-white/15 select-none shadow-2xl bg-black"
             >
-              {/* Foto de Fundo (Real ou Mock) */}
-              {photoUrl ? (
+              {/* Telemetria HUD Flutuante no Viewport (Distâncias Métricas Exatas) */}
+              <div className="absolute top-3 left-3 z-30 flex flex-col gap-1.5 pointer-events-none font-mono text-[10px]">
+                <div className="bg-black/80 backdrop-blur-md border border-white/15 px-2.5 py-1 rounded-lg text-zinc-300 flex items-center gap-2">
+                  <span className="w-2 h-2 rounded-full bg-blue-400" />
+                  <span>CÂMERA (POV): 0.0m (Ponto de tomada)</span>
+                </div>
+                <div className="bg-black/80 backdrop-blur-md border border-white/15 px-2.5 py-1 rounded-lg text-zinc-300 flex items-center gap-2">
+                  <span className="w-2 h-2 rounded-full bg-purple-400" />
+                  <span>PERSONAGEM: ~{params.subjectDistanceCam.toFixed(1)}m</span>
+                </div>
+                <div className="bg-black/80 backdrop-blur-md border border-white/15 px-2.5 py-1 rounded-lg text-amber-300 flex items-center gap-2">
+                  <span className="w-2 h-2 rounded-full bg-amber-400" />
+                  <span>
+                    LUZ PRINCIPAL: {params.keyLightAngle}° {params.keyLightSide === 'left' ? 'ESQ' : 'DIR'} • {params.keyLightDistanceToWall}m DA PAREDE
+                  </span>
+                </div>
+                <div className="bg-black/80 backdrop-blur-md border border-white/15 px-2.5 py-1 rounded-lg text-zinc-400 flex items-center gap-2">
+                  <span className="w-2 h-2 rounded-full bg-zinc-500" />
+                  <span>PAREDE DE FUNDO: ~{params.backWallDistanceCam.toFixed(1)}m (1.5m de recuo)</span>
+                </div>
+              </div>
+
+              {/* RENDER VIEW 1: PREVIEW 3D FINAL */}
+              {viewMode === 'relight' && renderedFinalUrl && (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={renderedFinalUrl}
+                  alt="Iluminação 3D com Profundidade"
+                  className="w-full h-full object-cover animate-fade-in"
+                />
+              )}
+
+              {/* RENDER VIEW 2: MAPA DE PROFUNDIDADE 3D */}
+              {viewMode === 'depth' && renderedDepthUrl && (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={renderedDepthUrl}
+                  alt="Mapa de Profundidade 3D"
+                  className="w-full h-full object-cover animate-fade-in filter contrast-125"
+                />
+              )}
+
+              {/* RENDER VIEW 3: FOTO ORIGINAL LIMPA */}
+              {viewMode === 'original' && photoUrl && (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img
                   src={photoUrl}
-                  alt="Ambiente fotografado"
-                  className={cn(
-                    'w-full h-full object-cover transition-all duration-300',
-                    showOriginal ? 'brightness-100 contrast-100' : 'brightness-[0.55] contrast-[1.15]'
-                  )}
+                  alt="Foto Original do Espaço"
+                  className="w-full h-full object-cover animate-fade-in"
                 />
-              ) : (
-                <div className="w-full h-full relative bg-gradient-to-b from-[#0c0e15] via-[#121520] to-[#080a0f] flex items-center justify-center">
-                  <div
-                    className="absolute inset-0 opacity-15"
-                    style={{
-                      backgroundImage:
-                        'radial-gradient(circle, #818cf8 1px, transparent 1px), linear-gradient(to right, #1a1e2e 1px, transparent 1px), linear-gradient(to bottom, #1a1e2e 1px, transparent 1px)',
-                      backgroundSize: '24px 24px',
-                    }}
-                  />
-                  <div className="text-center p-4">
-                    <p className="text-xs text-zinc-400 font-mono">
-                      (Nenhuma foto do espaço carregada ainda. Usando ambiente de estúdio de referência).
-                    </p>
-                    <span className="text-[10px] text-zinc-500 font-mono mt-1 block">
-                      Tire uma foto no botão &quot;Fotografar Ambiente Real&quot; para testar na sua sala real!
-                    </span>
-                  </div>
-                </div>
               )}
 
-              {/* CAMADA DE SIMULAÇÃO DE LUZ ARTIFICIAL (Quando NÃO está no modo Ver Original) */}
-              {!showOriginal && (
-                <div className="absolute inset-0 pointer-events-none">
-                  {/* Sombra de Ambiente (Contraste Cinematográfico) */}
-                  <div
-                    className="absolute inset-0 transition-opacity duration-300"
-                    style={{
-                      backgroundColor: 'rgba(0, 0, 0, 0.45)',
-                      mixBlendMode: 'multiply',
-                    }}
+              {/* RENDER VIEW 4: COMPARADOR SPLIT WIPE INTERATIVO */}
+              {viewMode === 'split' && photoUrl && renderedFinalUrl && (
+                <div className="relative w-full h-full overflow-hidden">
+                  {/* Fundo: Foto Original */}
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={photoUrl}
+                    alt="Original"
+                    className="absolute inset-0 w-full h-full object-cover"
                   />
 
-                  {/* Cone / Feixe Direcional de Luz Projetado sobre o Assunto */}
+                  {/* Frente: Imagem com Iluminação 3D cortada pelo split */}
                   <div
-                    className="absolute inset-0 transition-all duration-300 pointer-events-none"
-                    style={{
-                      background: `radial-gradient(
-                        circle at ${lightPos.x}% ${lightPos.y}%,
-                        ${currentColors.glow} 0%,
-                        ${currentColors.beam} ${Math.round(beamSpread * 0.55)}%,
-                        ${currentColors.ambient} ${Math.round(beamSpread * 1.1)}%,
-                        transparent ${Math.round(beamSpread * 1.5)}%
-                      )`,
-                      opacity: (intensity / 100) * 1.25,
-                      mixBlendMode: 'screen',
-                    }}
-                  />
-
-                  {/* Segunda camada suave para dispersão realista de softbox */}
-                  <div
-                    className="absolute inset-0 transition-all duration-300 pointer-events-none"
-                    style={{
-                      background: `radial-gradient(
-                        ellipse at ${targetPos.x}% ${targetPos.y}%,
-                        ${currentColors.beam} 0%,
-                        transparent ${Math.round(beamSpread * 1.4)}%
-                      )`,
-                      opacity: (intensity / 100) * 0.75,
-                      mixBlendMode: 'color-dodge',
-                    }}
-                  />
-
-                  {/* Se for Contraluz (Rim Light), adiciona reflexo de recorte */}
-                  {selectedPreset === 'rim_back' && (
-                    <div
-                      className="absolute inset-0 pointer-events-none"
-                      style={{
-                        background: `radial-gradient(
-                          circle at ${targetPos.x}% ${targetPos.y - 12}%,
-                          rgba(255, 255, 255, 0.85) 0%,
-                          rgba(200, 235, 255, 0.4) 25%,
-                          transparent 65%
-                        )`,
-                        mixBlendMode: 'overlay',
-                        opacity: (intensity / 100) * 0.9,
-                      }}
-                    />
-                  )}
-
-                  {/* Se for Teal & Orange, adiciona contraluz ciano em oposição */}
-                  {selectedPreset === 'teal_orange' && (
-                    <div
-                      className="absolute inset-0 pointer-events-none"
-                      style={{
-                        background: `radial-gradient(
-                          circle at ${100 - lightPos.x}% ${100 - lightPos.y}%,
-                          rgba(0, 220, 255, 0.55) 0%,
-                          transparent 45%
-                        )`,
-                        mixBlendMode: 'screen',
-                        opacity: 0.7,
-                      }}
-                    />
-                  )}
-
-                  {/* Marcador Visual Interativo da Fonte de Luz */}
-                  <div
-                    className="absolute -translate-x-1/2 -translate-y-1/2 flex items-center justify-center"
-                    style={{ left: `${lightPos.x}%`, top: `${lightPos.y}%` }}
+                    className="absolute inset-0 overflow-hidden border-r-2 border-white shadow-2xl pointer-events-none"
+                    style={{ width: `${splitPosition}%` }}
                   >
-                    <div className="w-8 h-8 rounded-full bg-white/20 border-2 border-white flex items-center justify-center shadow-lg shadow-amber-500/50 animate-pulse">
-                      <SunMedium className="w-4 h-4 text-white" />
-                    </div>
-                    <span className="absolute top-9 px-2 py-0.5 bg-black/85 text-amber-300 border border-amber-500/30 text-[9px] font-mono rounded whitespace-nowrap">
-                      Fonte de Luz ({Math.round(lightPos.x)}%, {Math.round(lightPos.y)}%)
-                    </span>
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={renderedFinalUrl}
+                      alt="Iluminação 3D"
+                      className="absolute inset-0 w-full h-full object-cover"
+                      style={{
+                        width: containerRef.current?.clientWidth || '100%',
+                        maxWidth: 'none',
+                      }}
+                    />
                   </div>
 
-                  {/* Linha indicando o vetor de projeção da luz até o assunto */}
-                  <svg className="absolute inset-0 w-full h-full pointer-events-none">
-                    <line
-                      x1={`${lightPos.x}%`}
-                      y1={`${lightPos.y}%`}
-                      x2={`${targetPos.x}%`}
-                      y2={`${targetPos.y}%`}
-                      stroke="rgba(255, 255, 255, 0.4)"
-                      strokeWidth="1.5"
-                      strokeDasharray="3,3"
-                    />
-                  </svg>
+                  {/* Linha Divisória com Alça de Arraste */}
+                  <div
+                    className="absolute top-0 bottom-0 z-30 cursor-ew-resize flex items-center justify-center pointer-events-none"
+                    style={{ left: `${splitPosition}%`, transform: 'translateX(-50%)' }}
+                  >
+                    <div className="w-8 h-8 rounded-full bg-white text-zinc-950 shadow-xl flex items-center justify-center border-2 border-black/40 font-mono text-[10px] font-bold">
+                      ↔
+                    </div>
+                  </div>
+
+                  <div className="absolute bottom-3 left-3 z-20 bg-black/75 px-2 py-0.5 rounded text-[10px] font-mono text-zinc-300">
+                    ILUMINADO (3D PBR)
+                  </div>
+                  <div className="absolute bottom-3 right-3 z-20 bg-black/75 px-2 py-0.5 rounded text-[10px] font-mono text-zinc-300">
+                    ORIGINAL
+                  </div>
                 </div>
               )}
-
-              {/* HUD Superior no Monitor */}
-              <div className="absolute top-3 left-3 right-3 flex items-center justify-between pointer-events-none z-10">
-                <div className="bg-black/75 backdrop-blur-sm border border-white/10 px-2.5 py-1 rounded-lg flex items-center gap-2 text-[10px] font-mono text-zinc-300">
-                  <span className="w-2 h-2 rounded-full bg-emerald-400" />
-                  <span>SIMULAÇÃO ATIVA: {currentColors.name}</span>
-                </div>
-
-                <div className="bg-black/75 backdrop-blur-sm border border-white/10 px-2.5 py-1 rounded-lg text-[10px] font-mono text-amber-300">
-                  {showOriginal ? 'FOTO ORIGINAL' : `INTENSIDADE: ${intensity}%`}
-                </div>
-              </div>
-
-              {/* Dica de interação na imagem */}
-              <div className="absolute bottom-3 left-3 bg-black/70 backdrop-blur-sm border border-white/10 px-2.5 py-1 rounded-lg text-[9px] font-mono text-zinc-400 pointer-events-none">
-                Clique em qualquer lugar da imagem para reposicionar a luz
-              </div>
             </div>
 
-            {/* Barra de Ações: Comparar Antes/Depois & Redefinir */}
-            <div className="w-full flex items-center justify-between gap-3 text-xs">
-              <button
-                type="button"
-                onMouseDown={() => setShowOriginal(true)}
-                onMouseUp={() => setShowOriginal(false)}
-                onTouchStart={() => setShowOriginal(true)}
-                onTouchEnd={() => setShowOriginal(false)}
-                className="py-2 px-3.5 bg-white/[0.06] hover:bg-white/[0.1] border border-white/10 rounded-xl text-zinc-200 font-medium flex items-center gap-2 transition-colors active:bg-amber-500/20 active:text-amber-300"
-              >
-                <Eye className="w-3.5 h-3.5" />
-                <span>Segure para Ver Foto Original (Antes)</span>
-              </button>
+            {/* Rodapé informativo com cálculo físico */}
+            <div className="w-full bg-[#111318] border border-white/[0.08] rounded-xl p-3 flex flex-wrap items-center justify-between gap-3 text-xs">
+              <div className="flex items-center gap-2 text-zinc-300">
+                <Info className="w-4 h-4 text-amber-400 shrink-0" />
+                <span className="text-[11px]">
+                  <strong>Cálculo Óptico Aplicado:</strong> A luz principal decai na razão física 1/d² e projeta sombra suave na parede a {params.keyLightDistanceToWall}m de recuo.
+                </span>
+              </div>
 
-              <button
-                type="button"
-                onClick={() => applyPreset('key_45')}
-                className="py-2 px-3 bg-white/[0.04] hover:bg-white/[0.08] border border-white/10 rounded-xl text-zinc-400 hover:text-white text-xs flex items-center gap-1.5 transition-colors font-mono"
-              >
-                <RotateCcw className="w-3.5 h-3.5" />
-                <span>Redefinir 45°</span>
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={runRelightSimulation}
+                  className="px-3 py-1.5 bg-white text-zinc-950 hover:bg-zinc-200 font-semibold rounded-lg text-xs flex items-center gap-1.5 transition-colors"
+                >
+                  <RotateCcw className="w-3.5 h-3.5" />
+                  <span>Recalcular Luz</span>
+                </button>
+              </div>
             </div>
           </div>
 
-          {/* LADO DIREITO: Controles de Iluminação (5 colunas) */}
-          <div className="lg:col-span-4 p-5 space-y-5 bg-[#111318] flex flex-col justify-between">
-            <div className="space-y-4">
-              {/* 1. Seleção de Esquema de Luz (Presets Cinematográficos) */}
-              <div className="space-y-1.5">
-                <label className="text-[11px] font-mono uppercase text-zinc-400 block tracking-wider">
-                  1. Esquema de Iluminação
-                </label>
-                <div className="grid grid-cols-1 gap-1.5">
-                  {[
-                    {
-                      id: 'key_45',
-                      name: 'Luz Principal 45° (Rembrandt)',
-                      desc: 'Triângulo clássico, volume e textura natural',
-                    },
-                    {
-                      id: 'softbox',
-                      name: 'Softbox Difuso (Comercial)',
-                      desc: 'Luz suave e envolvente para entrevistas B2B',
-                    },
-                    {
-                      id: 'rim_back',
-                      name: 'Contraluz / Rim Light (Recorte)',
-                      desc: 'Destaque de silhueta e separação do fundo',
-                    },
-                    {
-                      id: 'split_90',
-                      name: 'Split Lighting 90° (Dramático)',
-                      desc: 'Alto contraste lateral cinematográfico',
-                    },
-                    {
-                      id: 'teal_orange',
-                      name: 'Cinema Teal & Orange (RGB)',
-                      desc: 'Luz quente no rosto com contra-luz ciano',
-                    },
-                  ].map((preset) => {
-                    const isSelected = selectedPreset === preset.id;
-                    return (
-                      <button
-                        key={preset.id}
-                        type="button"
-                        onClick={() => applyPreset(preset.id as LightingPreset)}
-                        className={cn(
-                          'p-2.5 rounded-xl border text-left transition-all',
-                          isSelected
-                            ? 'bg-white/[0.08] border-white/30 text-white shadow-sm'
-                            : 'bg-black/30 border-white/[0.06] text-zinc-400 hover:text-zinc-200 hover:bg-white/[0.03]'
-                        )}
-                      >
-                        <div className="flex items-center justify-between">
-                          <span className="text-xs font-semibold">{preset.name}</span>
-                          {isSelected && <Check className="w-3.5 h-3.5 text-amber-400" />}
-                        </div>
-                        <p className="text-[10px] text-zinc-500 mt-0.5 font-mono">{preset.desc}</p>
-                      </button>
-                    );
-                  })}
+          {/* LADO DIREITO: Controles de Física & Equipamentos (4 colunas) */}
+          <div className="lg:col-span-4 p-4 sm:p-5 bg-[#111318] space-y-5 overflow-y-auto">
+            {/* Presets de Iluminação */}
+            <div>
+              <span className="text-[10px] font-mono uppercase text-zinc-400 tracking-wider block mb-2 font-semibold">
+                Esquemas Técnicos Recomendados
+              </span>
+              <div className="grid grid-cols-2 gap-2 text-xs">
+                <button
+                  type="button"
+                  onClick={() => handleApplyPreset('key_45')}
+                  className="p-2.5 bg-white/[0.03] hover:bg-white/[0.08] border border-white/10 rounded-xl text-left space-y-1 transition-colors"
+                >
+                  <span className="font-semibold text-white block">Key 45° Daylight</span>
+                  <span className="text-[10px] text-zinc-400 block font-mono">5600K • Octa 90cm</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => handleApplyPreset('warm_3200')}
+                  className="p-2.5 bg-white/[0.03] hover:bg-white/[0.08] border border-white/10 rounded-xl text-left space-y-1 transition-colors"
+                >
+                  <span className="font-semibold text-amber-300 block">Tungstênio Quente</span>
+                  <span className="text-[10px] text-zinc-400 block font-mono">3200K • Acolhedor</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => handleApplyPreset('bicolor_cinema')}
+                  className="p-2.5 bg-white/[0.03] hover:bg-white/[0.08] border border-white/10 rounded-xl text-left space-y-1 transition-colors"
+                >
+                  <span className="font-semibold text-cyan-300 block">Bi-Color Cinema</span>
+                  <span className="text-[10px] text-zinc-400 block font-mono">Key Âmbar + Rim Ciano</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => handleApplyPreset('split_90')}
+                  className="p-2.5 bg-white/[0.03] hover:bg-white/[0.08] border border-white/10 rounded-xl text-left space-y-1 transition-colors"
+                >
+                  <span className="font-semibold text-purple-300 block">Split Dramático</span>
+                  <span className="text-[10px] text-zinc-400 block font-mono">90° Lateral • Alto Contraste</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Ajustes da Luz Principal (Key Light) */}
+            <div className="space-y-3 pt-3 border-t border-white/[0.08]">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-semibold text-white flex items-center gap-1.5">
+                  <SunMedium className="w-3.5 h-3.5 text-amber-400" />
+                  <span>Luz Principal (Key Light)</span>
+                </span>
+                <div className="flex items-center gap-1 bg-black/40 p-0.5 rounded-lg border border-white/10 text-[10px] font-mono">
+                  <button
+                    type="button"
+                    onClick={() => setParams((p) => ({ ...p, keyLightSide: 'left' }))}
+                    className={cn(
+                      'px-2 py-0.5 rounded',
+                      params.keyLightSide === 'left' ? 'bg-white text-zinc-950 font-bold' : 'text-zinc-400'
+                    )}
+                  >
+                    Esq (45°)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setParams((p) => ({ ...p, keyLightSide: 'right' }))}
+                    className={cn(
+                      'px-2 py-0.5 rounded',
+                      params.keyLightSide === 'right' ? 'bg-white text-zinc-950 font-bold' : 'text-zinc-400'
+                    )}
+                  >
+                    Dir (45°)
+                  </button>
                 </div>
               </div>
 
-              {/* 2. Temperatura de Cor */}
-              <div className="space-y-1.5">
-                <label className="text-[11px] font-mono uppercase text-zinc-400 block tracking-wider">
-                  2. Temperatura de Cor (Kelvin)
-                </label>
-                <div className="grid grid-cols-3 gap-1.5">
-                  {[
-                    { id: '3200K', label: '3200K', desc: 'Quente' },
-                    { id: '4300K', label: '4300K', desc: 'Neutro' },
-                    { id: '5600K', label: '5600K', desc: 'Daylight' },
-                  ].map((item) => (
+              {/* Potência da Luz */}
+              <div className="space-y-1">
+                <div className="flex justify-between text-[11px] font-mono text-zinc-400">
+                  <span>Potência / Intensidade</span>
+                  <span className="text-white font-semibold">{params.intensity}%</span>
+                </div>
+                <input
+                  type="range"
+                  min={30}
+                  max={100}
+                  value={params.intensity}
+                  onChange={(e) => setParams((p) => ({ ...p, intensity: Number(e.target.value) }))}
+                  className="w-full accent-white"
+                />
+              </div>
+
+              {/* Distância da Luz em Relação à Parede de Fundo */}
+              <div className="space-y-1">
+                <div className="flex justify-between text-[11px] font-mono text-zinc-400">
+                  <span>Distância da Parede de Fundo</span>
+                  <span className="text-amber-400 font-semibold">{params.keyLightDistanceToWall.toFixed(1)} m</span>
+                </div>
+                <div className="grid grid-cols-3 gap-1.5 font-mono text-[11px]">
+                  {[1.0, 1.5, 2.0].map((dist) => (
                     <button
-                      key={item.id}
+                      key={dist}
                       type="button"
-                      onClick={() => setColorTemp(item.id as any)}
+                      onClick={() => setParams((p) => ({ ...p, keyLightDistanceToWall: dist }))}
                       className={cn(
-                        'py-1.5 px-2 rounded-xl border text-center transition-all',
-                        colorTemp === item.id
-                          ? 'bg-white text-zinc-950 font-semibold border-white'
-                          : 'bg-black/30 border-white/[0.08] text-zinc-400 hover:text-white'
+                        'py-1.5 rounded-lg border transition-colors',
+                        params.keyLightDistanceToWall === dist
+                          ? 'bg-amber-500/20 text-amber-300 border-amber-500/40 font-bold'
+                          : 'bg-white/[0.03] text-zinc-400 border-white/[0.07] hover:text-white'
                       )}
                     >
-                      <span className="text-xs font-mono block">{item.label}</span>
-                      <span className="text-[9px] text-zinc-500 block">{item.desc}</span>
+                      {dist.toFixed(1)} m {dist === 1.5 ? '(Ideal)' : ''}
                     </button>
                   ))}
                 </div>
               </div>
 
-              {/* 3. Slider de Intensidade */}
-              <div className="space-y-1.5 bg-black/30 p-3 rounded-xl border border-white/[0.06]">
-                <div className="flex justify-between items-center text-xs">
-                  <span className="text-zinc-300 font-medium">Potência da Luz</span>
-                  <span className="font-mono text-amber-400">{intensity}%</span>
+              {/* Tamanho do Softbox / Difusão */}
+              <div className="space-y-1">
+                <div className="flex justify-between text-[11px] font-mono text-zinc-400">
+                  <span>Modificador de Difusão</span>
+                  <span className="text-white font-semibold">{params.softboxDiameterCm} cm</span>
                 </div>
-                <input
-                  type="range"
-                  min="10"
-                  max="100"
-                  value={intensity}
-                  onChange={(e) => setIntensity(Number(e.target.value))}
-                  className="w-full h-1.5 bg-zinc-800 rounded-lg appearance-none cursor-pointer accent-white"
-                />
-                <div className="flex justify-between text-[9px] text-zinc-500 font-mono">
-                  <span>Preenchimento Leve</span>
-                  <span>Luz Direta Potente</span>
+                <div className="grid grid-cols-3 gap-1.5 font-mono text-[11px]">
+                  {[
+                    { cm: 60, label: '60cm (Direta)' },
+                    { cm: 90, label: '90cm (Octa)' },
+                    { cm: 120, label: '120cm (Dome)' },
+                  ].map((item) => (
+                    <button
+                      key={item.cm}
+                      type="button"
+                      onClick={() => setParams((p) => ({ ...p, softboxDiameterCm: item.cm }))}
+                      className={cn(
+                        'py-1.5 rounded-lg border transition-colors text-center',
+                        params.softboxDiameterCm === item.cm
+                          ? 'bg-white text-zinc-950 font-bold border-white'
+                          : 'bg-white/[0.03] text-zinc-400 border-white/[0.07] hover:text-white'
+                      )}
+                    >
+                      {item.label}
+                    </button>
+                  ))}
                 </div>
               </div>
 
-              {/* 4. Abertura do Feixe (Difusor / Grid) */}
-              <div className="space-y-1.5 bg-black/30 p-3 rounded-xl border border-white/[0.06]">
-                <div className="flex justify-between items-center text-xs">
-                  <span className="text-zinc-300 font-medium">Difusão / Tamanho do Softbox</span>
-                  <span className="font-mono text-zinc-400">{beamSpread}%</span>
-                </div>
-                <input
-                  type="range"
-                  min="20"
-                  max="90"
-                  value={beamSpread}
-                  onChange={(e) => setBeamSpread(Number(e.target.value))}
-                  className="w-full h-1.5 bg-zinc-800 rounded-lg appearance-none cursor-pointer accent-white"
-                />
-                <div className="flex justify-between text-[9px] text-zinc-500 font-mono">
-                  <span>Foco Direto (Spot)</span>
-                  <span>Softbox 90cm (Difuso)</span>
+              {/* Temperatura de Cor */}
+              <div className="space-y-1">
+                <span className="text-[11px] font-mono text-zinc-400 block">Temperatura Kelvin</span>
+                <div className="grid grid-cols-4 gap-1 font-mono text-[10px]">
+                  {(['3200K', '4300K', '5600K', 'bicolor'] as const).map((temp) => (
+                    <button
+                      key={temp}
+                      type="button"
+                      onClick={() => setParams((p) => ({ ...p, colorTemp: temp }))}
+                      className={cn(
+                        'py-1.5 rounded-lg border transition-colors uppercase text-center',
+                        params.colorTemp === temp
+                          ? 'bg-white text-zinc-950 font-bold border-white'
+                          : 'bg-white/[0.03] text-zinc-400 border-white/[0.07] hover:text-white'
+                      )}
+                    >
+                      {temp}
+                    </button>
+                  ))}
                 </div>
               </div>
             </div>
 
-            {/* Rodapé dos Controles */}
-            <div className="pt-3 border-t border-white/[0.08] space-y-2">
-              <button
-                type="button"
-                onClick={onClose}
-                className="w-full py-2.5 bg-white hover:bg-zinc-200 text-zinc-950 font-semibold text-xs rounded-xl flex items-center justify-center gap-2 transition-colors shadow-md"
-              >
-                <span>Aplicar Configuração no Set</span>
-              </button>
+            {/* Camadas Técnicas Adicionais */}
+            <div className="space-y-2 pt-3 border-t border-white/[0.08]">
+              <span className="text-[10px] font-mono uppercase text-zinc-400 tracking-wider block font-semibold">
+                Física Óptica & Camadas de Set
+              </span>
+
+              <label className="flex items-center justify-between p-2.5 bg-white/[0.03] border border-white/[0.07] rounded-xl cursor-pointer hover:bg-white/[0.05] transition-colors">
+                <div>
+                  <span className="text-xs text-white font-medium block">Contra-Luz (Rim / Hair Light)</span>
+                  <span className="text-[10px] text-zinc-400 font-mono">Separa a silhueta da parede de fundo</span>
+                </div>
+                <input
+                  type="checkbox"
+                  checked={params.enableRimLight}
+                  onChange={(e) => setParams((p) => ({ ...p, enableRimLight: e.target.checked }))}
+                  className="w-4 h-4 accent-amber-400 rounded"
+                />
+              </label>
+
+              <label className="flex items-center justify-between p-2.5 bg-white/[0.03] border border-white/[0.07] rounded-xl cursor-pointer hover:bg-white/[0.05] transition-colors">
+                <div>
+                  <span className="text-xs text-white font-medium block">Sombra Projetada na Parede</span>
+                  <span className="text-[10px] text-zinc-400 font-mono">Projeta sombra realista a 1.5m atrás</span>
+                </div>
+                <input
+                  type="checkbox"
+                  checked={params.enableCastShadow}
+                  onChange={(e) => setParams((p) => ({ ...p, enableCastShadow: e.target.checked }))}
+                  className="w-4 h-4 accent-amber-400 rounded"
+                />
+              </label>
+
+              <label className="flex items-center justify-between p-2.5 bg-white/[0.03] border border-white/[0.07] rounded-xl cursor-pointer hover:bg-white/[0.05] transition-colors">
+                <div>
+                  <span className="text-xs text-white font-medium block">Preenchimento Suave (Fill)</span>
+                  <span className="text-[10px] text-zinc-400 font-mono">Mantém detalhe no lado da sombra</span>
+                </div>
+                <input
+                  type="checkbox"
+                  checked={params.enableFillLight}
+                  onChange={(e) => setParams((p) => ({ ...p, enableFillLight: e.target.checked }))}
+                  className="w-4 h-4 accent-amber-400 rounded"
+                />
+              </label>
             </div>
           </div>
         </div>
