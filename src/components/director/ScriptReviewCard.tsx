@@ -24,6 +24,9 @@ interface ScriptReviewCardProps {
   onRegenerate: () => void;
   onUpdateScript: (updatedScript: ScriptCreatorOutput) => void;
   onRequestAdjustment: (prompt: string) => void;
+  versions?: { version: number; timestamp: string; script: any; note?: string }[];
+  currentVersionNumber?: number;
+  onSelectVersion?: (script: ScriptCreatorOutput) => void;
 }
 
 export function ScriptReviewCard({
@@ -33,6 +36,9 @@ export function ScriptReviewCard({
   onRegenerate,
   onUpdateScript,
   onRequestAdjustment,
+  versions = [],
+  currentVersionNumber,
+  onSelectVersion,
 }: ScriptReviewCardProps) {
   const [isEditMode, setIsEditMode] = useState(false);
   const [editedHook, setEditedHook] = useState(script.hook);
@@ -40,6 +46,14 @@ export function ScriptReviewCard({
   const [editedCta, setEditedCta] = useState(script.cta);
   const [editedScenes, setEditedScenes] = useState<ScriptScene[]>(script.scenes);
   const [showAdjustQuickBar, setShowAdjustQuickBar] = useState(false);
+
+  // Sincroniza estado de edição ao receber novo script
+  React.useEffect(() => {
+    setEditedHook(script.hook);
+    setEditedCentralQuestion(script.central_question);
+    setEditedCta(script.cta);
+    setEditedScenes(script.scenes);
+  }, [script]);
 
   // Salvar alterações manuais
   const handleSaveEdits = () => {
@@ -98,6 +112,27 @@ export function ScriptReviewCard({
             <p className="text-[11px] text-zinc-400">
               {script.scenes.length} cenas estruturadas pela metodologia de retenção humana
             </p>
+
+            {/* SELETOR DE VERSÕES HISTÓRICAS (Seção 8 do Master Prompt) */}
+            {versions && versions.length > 0 && (
+              <div className="flex flex-wrap items-center gap-1.5 pt-1 text-[10px] font-mono">
+                <span className="text-zinc-500">Versões:</span>
+                {versions.map((v) => (
+                  <button
+                    key={v.version}
+                    type="button"
+                    onClick={() => onSelectVersion && onSelectVersion(v.script)}
+                    className="px-2 py-0.5 rounded bg-white/[0.04] hover:bg-white/[0.1] border border-white/10 text-zinc-400 hover:text-white transition-colors"
+                    title={`Ver Versão ${v.version} gravada em ${new Date(v.timestamp).toLocaleTimeString('pt-BR')}`}
+                  >
+                    V{v.version}
+                  </button>
+                ))}
+                <span className="px-2 py-0.5 rounded bg-purple-500/20 border border-purple-500/40 text-purple-300 font-bold">
+                  V{currentVersionNumber || versions.length + 1} (Atual)
+                </span>
+              </div>
+            )}
           </div>
         </div>
 

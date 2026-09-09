@@ -26,6 +26,10 @@ import {
   Lock,
   ArrowRight,
   Compass,
+  FolderOpen,
+  Plus,
+  Pencil,
+  Trash2,
 } from 'lucide-react';
 import { useAppStore } from '@/lib/store/local-store';
 import {
@@ -34,6 +38,7 @@ import {
   createInitialConversationState,
   extractContextFromInput,
   generateNarrativeScript,
+  generateScriptProjectTitle,
   AIProductionStage,
   ChatMessage,
   CreativeBrief,
@@ -46,6 +51,7 @@ import { Studio3DLightingMap } from '@/components/director/Studio3DLightingMap';
 import { WhyModal } from '@/components/director/WhyModal';
 import { VoiceInput } from '@/components/director/VoiceInput';
 import { ScriptReviewCard } from '@/components/director/ScriptReviewCard';
+import { ScriptLibraryModal } from '@/components/director/ScriptLibraryModal';
 import { cn } from '@/lib/utils';
 
 function DirectorContent() {
@@ -53,7 +59,22 @@ function DirectorContent() {
   const clientId = searchParams.get('client_id');
   const isQuick = searchParams.get('quick') === 'true';
 
-  const { clients, projects, equipments, kits } = useAppStore();
+  const {
+    clients,
+    projects,
+    equipments,
+    kits,
+    isLoaded,
+    scriptProjects,
+    activeScriptProjectId,
+    activeScriptProject,
+    createScriptProject,
+    selectScriptProject,
+    updateScriptProject,
+    renameScriptProject,
+    deleteScriptProject,
+    addScriptVersion,
+  } = useAppStore();
 
   const selectedClient = clients.find((c) => c.id === clientId) || clients[0];
   const activeProject = projects.find((p) => p.client_id === selectedClient?.id) || projects[0];
@@ -98,10 +119,54 @@ function DirectorContent() {
 
   const chatBottomRef = useRef<HTMLDivElement>(null);
 
+  // Estados de Gerenciamento da Biblioteca de Roteiros ("Meus Roteiros")
+  const [isLibraryOpen, setIsLibraryOpen] = useState(false);
+  const [isRenaming, setIsRenaming] = useState(false);
+  const [renameInput, setRenameInput] = useState('');
+  const prevProjectIdRef = useRef<string | null>(null);
+
   // Auto-scroll do chat ao receber mensagens
   useEffect(() => {
     chatBottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, isThinking]);
+
+  // Sincronização e isolamento estrito de cada Projeto de Roteiro
+  useEffect(() => {
+    if (!isLoaded) return;
+
+    // Se nenhum projeto de roteiro existir ainda, cria o primeiro limpo
+    if (scriptProjects.length === 0) {
+      createScriptProject('Novo Roteiro', selectedClient?.id);
+      return;
+    }
+
+    // Se não há projeto ativo selecionado, seleciona o primeiro disponível
+    if (!activeScriptProjectId && scriptProjects.length > 0) {
+      selectScriptProject(scriptProjects[0].id);
+      return;
+    }
+
+    // Quando o activeScriptProject mudar (ex: ao criar novo ou trocar na biblioteca)
+    if (activeScriptProject && activeScriptProject.id !== prevProjectIdRef.current) {
+      prevProjectIdRef.current = activeScriptProject.id;
+      setStage((activeScriptProject.stage as AIProductionStage) || 'idle');
+      setCurrentBrief(activeScriptProject.brief || null);
+      setCurrentScript(activeScriptProject.script || null);
+      setIsScriptApproved(Boolean(activeScriptProject.is_approved));
+      setMessages(
+        activeScriptProject.conversation && activeScriptProject.conversation.length > 0
+          ? activeScriptProject.conversation
+          : createInitialConversationState(selectedClient?.name).messages
+      );
+      setDoneTakes([]);
+
+      if (!activeScriptProject.is_approved) {
+        setTeamOutput(null);
+        setCustom3DSetup(null);
+        setActiveTab('conversar');
+      }
+    }
+  }, [isLoaded, activeScriptProjectId, activeScriptProject, scriptProjects.length]);
 
   // Contexto Compartilhado de Produção (Seção 4 do Master Prompt)
   const sharedContext = useMemo<SharedProjectContext>(() => {
@@ -168,6 +233,13 @@ function DirectorContent() {
     }
   }, [sharedContext, isScriptApproved, currentScript]);
 
+  // NOVO PROJETO DE ROTEIRO (100% LIMPO, SEM MISTURAR COM O ANTERIOR)
+  const handleNewScriptProject = () => {
+    createScriptProject('Novo Roteiro', selectedClient?.id);
+    setActiveTab('conversar');
+    setIsLibraryOpen(false);
+  };
+
   // ENVIAR MENSAGEM (TEXTO OU ÁUDIO FALADO PELO USUÁRIO)
   const handleSendMessage = (text: string, isAudio: boolean = false) => {
     if (!text.trim()) return;
@@ -181,8 +253,21 @@ function DirectorContent() {
       isAudio: isAudio,
     };
 
-    setMessages((prev) => [...prev, userMsg]);
+    const updatedMessages = [...messages, userMsg];
+    setMessages(updatedMessages);
     setIsThinking(true);
+
+    // Auto-derivação de título inteligente a partir da primeira ideia de roteiro
+    if (
+      activeScriptProject &&
+      (activeScriptProject.title === 'Novo Roteiro' ||
+        activeScriptProject.title === 'Roteiro sem título' ||
+        !activeScriptProject.title)
+    ) {
+      const analysisPreview = extractContextFromInput(text, currentBrief);
+      const derived = generateScriptProjectTitle(text, analysisPreview.brief);
+      renameScriptProject(activeScriptProject.id, derived);
+    }
 
     setTimeout(() => {
       const analysis = extractContextFromInput(text, currentBrief);
@@ -210,7 +295,6 @@ function DirectorContent() {
       }
 
       // CASO 4: PRIMEIRO CONTATO (ESTÁGIO IDLE) — DIÁLOGO CONVERSACIONAL ANTES DO ROTEIRO
-      // O Criador de Roteiro ouve, confirma o que entendeu e faz 1 a 2 perguntas focadas
       if (stage === 'idle' && !currentScript && !analysis.wantsImmediateGeneration) {
         const clarifyMsg: ChatMessage = {
           id: `msg-${Date.now() + 1}`,
@@ -228,8 +312,17 @@ function DirectorContent() {
             { label: '🎯 Pode gerar o roteiro com o que tem!', action: 'send:Pode gerar o roteiro com o que tem!' },
           ],
         };
-        setMessages((prev) => [...prev, clarifyMsg]);
+        const nextMsgs = [...updatedMessages, clarifyMsg];
+        setMessages(nextMsgs);
         setStage('clarification');
+        if (activeScriptProject) {
+          updateScriptProject(activeScriptProject.id, {
+            conversation: nextMsgs,
+            stage: 'clarification',
+            brief: analysis.brief,
+            status: 'in_conversation',
+          });
+        }
         setIsThinking(false);
         return;
       }
@@ -251,8 +344,19 @@ function DirectorContent() {
         brief: analysis.brief,
       };
 
-      setMessages((prev) => [...prev, scriptResponse]);
+      const finalMsgs = [...updatedMessages, scriptResponse];
+      setMessages(finalMsgs);
       setActiveTab('conversar');
+      if (activeScriptProject) {
+        updateScriptProject(activeScriptProject.id, {
+          conversation: finalMsgs,
+          stage: 'script_review',
+          script: newScript,
+          brief: analysis.brief,
+          is_approved: false,
+          status: 'script_generated',
+        });
+      }
       setIsThinking(false);
     }, 350);
   };
@@ -284,13 +388,26 @@ function DirectorContent() {
       stage: 'production_ready',
     };
 
-    setMessages((prev) => [...prev, approvalMsg]);
+    const finalMsgs = [...messages, approvalMsg];
+    setMessages(finalMsgs);
+    if (activeScriptProject) {
+      updateScriptProject(activeScriptProject.id, {
+        conversation: finalMsgs,
+        stage: 'production_ready',
+        is_approved: true,
+        status: 'approved',
+      });
+    }
   };
 
-  // REGENERAR ROTEIRO (OUTRA PROPOSTA NARRATIVA)
+  // REGENERAR ROTEIRO (PRESERVA VERSÃO ANTERIOR NO HISTÓRICO)
   const handleRegenerateScript = () => {
     if (!currentBrief) return;
     setIsThinking(true);
+
+    if (activeScriptProject && currentScript) {
+      addScriptVersion(activeScriptProject.id, currentScript, 'Versão anterior antes de regenerar');
+    }
 
     setTimeout(() => {
       const alternativeScript = generateNarrativeScript(currentBrief, true);
@@ -308,18 +425,32 @@ function DirectorContent() {
         script: alternativeScript,
       };
 
-      setMessages((prev) => [...prev, regenMsg]);
+      const finalMsgs = [...messages, regenMsg];
+      setMessages(finalMsgs);
+      if (activeScriptProject) {
+        updateScriptProject(activeScriptProject.id, {
+          conversation: finalMsgs,
+          stage: 'script_review',
+          script: alternativeScript,
+          is_approved: false,
+          status: 'editing',
+        });
+      }
       setIsThinking(false);
     }, 300);
   };
 
-  // AJUSTE CIRÚRGICO (TARGETED REGENERATION)
+  // AJUSTE CIRÚRGICO (PRESERVA VERSÃO ANTERIOR NO HISTÓRICO)
   const handleTargetedAdjustment = (
     type: 'hook' | 'cta' | 'duration' | 'tone' | 'dialogue',
     directive: string
   ) => {
     if (!currentScript) return;
     setIsThinking(true);
+
+    if (activeScriptProject) {
+      addScriptVersion(activeScriptProject.id, currentScript, `Versão anterior ao ajuste de ${type}`);
+    }
 
     setTimeout(() => {
       const updated = applyTargetedAdjustment(currentScript, type, directive);
@@ -336,7 +467,17 @@ function DirectorContent() {
         script: updated,
       };
 
-      setMessages((prev) => [...prev, adjMsg]);
+      const finalMsgs = [...messages, adjMsg];
+      setMessages(finalMsgs);
+      if (activeScriptProject) {
+        updateScriptProject(activeScriptProject.id, {
+          conversation: finalMsgs,
+          stage: 'script_review',
+          script: updated,
+          is_approved: false,
+          status: 'editing',
+        });
+      }
       setIsThinking(false);
     }, 250);
   };
@@ -351,7 +492,16 @@ function DirectorContent() {
       text: `Suas alterações manuais foram salvas e fixadas como conteúdo aprovado. Pronto para aprovação e gravação.`,
       timestamp: new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
     };
-    setMessages((prev) => [...prev, editMsg]);
+    const finalMsgs = [...messages, editMsg];
+    setMessages(finalMsgs);
+    if (activeScriptProject) {
+      updateScriptProject(activeScriptProject.id, {
+        script: editedScript,
+        conversation: finalMsgs,
+        user_edits: { ...(activeScriptProject.user_edits || {}), [Date.now()]: editedScript },
+        status: 'editing',
+      });
+    }
   };
 
   const toggleTake = (num: number) => {
@@ -397,6 +547,85 @@ function DirectorContent() {
             <Settings className="w-3.5 h-3.5 text-zinc-400" />
             <span>Montar / Trocar Meu Kit</span>
           </Link>
+        </div>
+      </div>
+
+      {/* 1.5 BARRA DO PROJETO DE ROTEIRO ATIVO & BIBLIOTECA ("MEUS ROTEIROS") */}
+      <div className="bg-[#111318] border border-purple-500/20 bg-gradient-to-r from-purple-950/20 via-[#111318] to-amber-950/10 rounded-2xl p-3.5 sm:p-4 flex flex-col md:flex-row md:items-center justify-between gap-3 shadow-md">
+        <div className="flex items-center gap-3 min-w-0">
+          <div className="w-9 h-9 rounded-xl bg-purple-500/15 border border-purple-500/30 flex items-center justify-center text-purple-400 shrink-0">
+            <BookOpen className="w-4 h-4" />
+          </div>
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-[10px] font-mono text-purple-400 uppercase tracking-wider font-semibold">
+                ROTEIRO:
+              </span>
+              <span className="text-xs sm:text-sm font-bold text-white tracking-tight truncate max-w-[200px] sm:max-w-md">
+                {activeScriptProject?.title || 'Novo Roteiro'}
+              </span>
+              <button
+                type="button"
+                onClick={() => {
+                  setRenameInput(activeScriptProject?.title || '');
+                  setIsRenaming(true);
+                }}
+                className="text-zinc-400 hover:text-white p-1 rounded hover:bg-white/10 transition-colors"
+                title="Renomear este roteiro"
+              >
+                <Pencil className="w-3.5 h-3.5" />
+              </button>
+              {activeScriptProject && (
+                <span
+                  className={cn(
+                    'text-[9px] font-mono px-2 py-0.5 rounded border font-semibold uppercase',
+                    activeScriptProject.status === 'approved'
+                      ? 'bg-emerald-500/15 text-emerald-400 border-emerald-500/25'
+                      : activeScriptProject.status === 'script_generated'
+                      ? 'bg-purple-500/15 text-purple-400 border-purple-500/25'
+                      : activeScriptProject.status === 'editing'
+                      ? 'bg-blue-500/15 text-blue-400 border-blue-500/25'
+                      : activeScriptProject.status === 'in_conversation'
+                      ? 'bg-amber-500/15 text-amber-400 border-amber-500/25'
+                      : 'bg-zinc-500/15 text-zinc-400 border-zinc-500/25'
+                  )}
+                >
+                  {activeScriptProject.status === 'approved'
+                    ? 'Aprovado'
+                    : activeScriptProject.status === 'script_generated'
+                    ? 'Roteiro gerado'
+                    : activeScriptProject.status === 'editing'
+                    ? 'Roteiro em edição'
+                    : activeScriptProject.status === 'in_conversation'
+                    ? 'Em conversa'
+                    : 'Rascunho'}
+                </span>
+              )}
+            </div>
+            <p className="text-[11px] text-zinc-400 mt-0.5 line-clamp-1">
+              Ideia isolada com histórico, versões e plano de takes dedicados
+            </p>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-2 self-end md:self-auto shrink-0">
+          <button
+            type="button"
+            onClick={() => setIsLibraryOpen(true)}
+            className="py-1.5 px-3 bg-white/[0.06] hover:bg-white/[0.1] border border-white/10 text-white rounded-xl text-xs font-medium flex items-center gap-1.5 transition-colors shadow-sm"
+          >
+            <FolderOpen className="w-3.5 h-3.5 text-purple-400" />
+            <span>Meus Roteiros ({scriptProjects.length})</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={handleNewScriptProject}
+            className="py-1.5 px-3 bg-purple-600 hover:bg-purple-500 text-white rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-colors shadow-md"
+          >
+            <Plus className="w-3.5 h-3.5" />
+            <span>+ Novo Roteiro</span>
+          </button>
         </div>
       </div>
 
@@ -633,6 +862,9 @@ function DirectorContent() {
                     onRegenerate={handleRegenerateScript}
                     onUpdateScript={handleUpdateScript}
                     onRequestAdjustment={(prompt) => handleSendMessage(prompt)}
+                    versions={activeScriptProject?.versions || []}
+                    currentVersionNumber={(activeScriptProject?.versions?.length || 0) + 1}
+                    onSelectVersion={(versionScript) => setCurrentScript(versionScript)}
                   />
                 </div>
               )}
@@ -1007,6 +1239,73 @@ function DirectorContent() {
           whyExplanation: custom3DSetup?.purpose || 'Criar tridimensionalidade e separação visual cinematográfica.',
           takesPlan: [],
         }}
+      />
+
+      {/* MODAL DE RENOMEAR TÍTULO DO ROTEIRO */}
+      {isRenaming && (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-xs flex items-center justify-center p-4 animate-fade-in">
+          <div className="bg-[#111318] border border-white/10 rounded-2xl max-w-md w-full p-5 space-y-4 shadow-2xl">
+            <div className="flex items-center gap-2 text-white font-semibold text-sm">
+              <Pencil className="w-4 h-4 text-purple-400" />
+              <span>Renomear Projeto de Roteiro</span>
+            </div>
+            <p className="text-xs text-zinc-400">
+              Escolha um nome descritivo para identificar facilmente este roteiro na sua biblioteca.
+            </p>
+            <input
+              type="text"
+              value={renameInput}
+              onChange={(e) => setRenameInput(e.target.value)}
+              className="w-full bg-black/40 border border-white/10 rounded-xl px-3.5 py-2.5 text-xs text-white placeholder:text-zinc-500 focus:outline-none focus:border-purple-500"
+              placeholder="Ex: 3 Cortes Masculinos em Alta"
+              autoFocus
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  if (activeScriptProject && renameInput.trim()) {
+                    renameScriptProject(activeScriptProject.id, renameInput.trim());
+                    setIsRenaming(false);
+                  }
+                }
+              }}
+            />
+            <div className="flex items-center justify-end gap-2 pt-1">
+              <button
+                type="button"
+                onClick={() => setIsRenaming(false)}
+                className="py-1.5 px-3 bg-white/[0.06] hover:bg-white/[0.1] text-zinc-300 rounded-xl text-xs font-medium transition-colors"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  if (activeScriptProject && renameInput.trim()) {
+                    renameScriptProject(activeScriptProject.id, renameInput.trim());
+                    setIsRenaming(false);
+                  }
+                }}
+                className="py-1.5 px-4 bg-purple-600 hover:bg-purple-500 text-white rounded-xl text-xs font-semibold transition-colors shadow-md"
+              >
+                Salvar Título
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* BIBLIOTECA DE ROTEIROS INDEPENDENTES ("MEUS ROTEIROS") */}
+      <ScriptLibraryModal
+        isOpen={isLibraryOpen}
+        onClose={() => setIsLibraryOpen(false)}
+        scriptProjects={scriptProjects}
+        activeProjectId={activeScriptProjectId}
+        onSelectProject={(id) => {
+          selectScriptProject(id);
+          setIsLibraryOpen(false);
+        }}
+        onCreateNewProject={handleNewScriptProject}
+        onRenameProject={(id, newTitle) => renameScriptProject(id, newTitle)}
+        onDeleteProject={(id) => deleteScriptProject(id)}
       />
     </div>
   );

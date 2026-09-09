@@ -98,3 +98,35 @@ export interface TakeItem {
   duration_seconds: number;
   status: 'pendente' | 'gravado' | 'descartado';
 }
+
+export type ScriptProjectStatus =
+  | 'draft'
+  | 'in_conversation'
+  | 'script_generated'
+  | 'editing'
+  | 'approved'
+  | 'archived';
+
+export interface ScriptVersionRecord {
+  version: number;
+  timestamp: string;
+  script: any;
+  note?: string;
+}
+
+export interface ScriptProject {
+  id: string;
+  user_id?: string;
+  client_id?: string;
+  title: string;
+  created_at: string;
+  updated_at: string;
+  status: ScriptProjectStatus;
+  stage: string;
+  brief: any | null;
+  script: any | null;
+  versions: ScriptVersionRecord[];
+  conversation: any[];
+  user_edits?: Record<string, any>;
+  is_approved: boolean;
+}

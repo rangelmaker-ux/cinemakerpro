@@ -328,6 +328,53 @@ export function extractContextFromInput(
 }
 
 /**
+ * GERA TÍTULO AUTOMÁTICO PARA O PROJETO DE ROTEIRO (Seção 3 & 29 do Master Prompt)
+ * Exemplo do prompt: "3 Cortes Masculinos em Alta"
+ */
+export function generateScriptProjectTitle(rawInput: string, brief: CreativeBrief): string {
+  const text = rawInput.toLowerCase();
+
+  if (
+    text.includes('três cortes') ||
+    text.includes('3 cortes') ||
+    (text.includes('corte') && text.includes('barbearia'))
+  ) {
+    return '3 Cortes Masculinos em Alta';
+  }
+  if (text.includes('promoção') || text.includes('inverno')) {
+    return 'Promoção de Inverno';
+  }
+  if (text.includes('transformação')) {
+    return 'Transformação da Barbearia';
+  }
+  if (text.includes('depoimento') || text.includes('transformação real')) {
+    return 'Depoimento de Cliente Satisfeito';
+  }
+  if (text.includes('institucional')) {
+    return 'Vídeo Institucional da Marca';
+  }
+  if (text.includes('hambúrguer') || text.includes('lanche')) {
+    return 'Hambúrguer Artesanal Supremo';
+  }
+  if (text.includes('café') || text.includes('barista')) {
+    return 'Segredos do Café Especial';
+  }
+  if (text.includes('academia') || text.includes('treino')) {
+    return 'Disciplina e Resultados no Treino';
+  }
+
+  if (brief.topic && brief.topic !== 'Apresentação de valor') {
+    const cleanWords = brief.topic
+      .split(' ')
+      .slice(0, 5)
+      .map((w) => w.charAt(0).toUpperCase() + w.slice(1));
+    return cleanWords.join(' ');
+  }
+
+  return 'Novo Projeto de Roteiro';
+}
+
+/**
  * GERADOR DE ROTEIRO NARRATIVO ESPECÍFICO (Seção 16 a 19 do Master Prompt)
  * Totalmente construído sobre a fala real do usuário, adaptando gancho, cenas e CTA.
  */

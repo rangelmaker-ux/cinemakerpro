@@ -11,6 +11,8 @@ import {
   UserRole,
   UserStatus,
   SubscriptionTier,
+  ScriptProject,
+  ScriptVersionRecord,
 } from '@/types/database';
 import {
   INITIAL_CLIENTS,
@@ -54,6 +56,15 @@ interface AppStoreContextType {
   toggleChecklistItem: (shootId: string, checkId: string) => void;
   setActiveShootId: (id: string) => void;
   setGoogleCalendarConnected: (connected: boolean) => void;
+  scriptProjects: ScriptProject[];
+  activeScriptProjectId: string;
+  activeScriptProject: ScriptProject | null;
+  createScriptProject: (initialTitle?: string, clientId?: string) => ScriptProject;
+  selectScriptProject: (id: string) => void;
+  updateScriptProject: (id: string, updates: Partial<ScriptProject>) => void;
+  renameScriptProject: (id: string, newTitle: string) => void;
+  deleteScriptProject: (id: string) => void;
+  addScriptVersion: (id: string, script: any, note?: string) => void;
 }
 
 const AppStoreContext = createContext<AppStoreContextType | null>(null);
@@ -70,6 +81,8 @@ export function AppStoreProvider({ children }: { children: React.ReactNode }) {
   const [projects, setProjects] = useState<Project[]>(INITIAL_PROJECTS);
   const [shoots, setShoots] = useState<Shoot[]>(INITIAL_SHOOTS);
   const [activeShootId, setActiveShootIdState] = useState<string>('');
+  const [scriptProjects, setScriptProjects] = useState<ScriptProject[]>([]);
+  const [activeScriptProjectId, setActiveScriptProjectId] = useState<string>('');
   const [isLoaded, setIsLoaded] = useState(false);
 
   // 1. Carregar Sessão e Diretório de Usuários (100% Limpo sem mock data)
@@ -128,12 +141,16 @@ export function AppStoreProvider({ children }: { children: React.ReactNode }) {
         if (parsed.projects) setProjects(parsed.projects);
         if (parsed.shoots) setShoots(parsed.shoots);
         if (parsed.activeShootId) setActiveShootIdState(parsed.activeShootId);
+        if (parsed.scriptProjects) setScriptProjects(parsed.scriptProjects);
+        if (parsed.activeScriptProjectId) setActiveScriptProjectId(parsed.activeScriptProjectId);
       } else {
         setEquipments(INITIAL_EQUIPMENTS);
         setKits(INITIAL_KITS);
         setClients([]);
         setProjects([]);
         setShoots([]);
+        setScriptProjects([]);
+        setActiveScriptProjectId('');
       }
     } catch (e) {
       console.error('Erro ao carregar workspace:', e);
@@ -170,7 +187,7 @@ export function AppStoreProvider({ children }: { children: React.ReactNode }) {
   // 3. Salvar alterações no workspace isolado do usuário atual
   useEffect(() => {
     if (!isLoaded || !user) return;
-    const userStorageKey = `cinemakerpro_workspace_${user.id}`;
+    const userStorageKey = `cinemakerpro_workspace_v3_${user.id}`;
     try {
       localStorage.setItem(
         userStorageKey,
@@ -181,12 +198,14 @@ export function AppStoreProvider({ children }: { children: React.ReactNode }) {
           projects,
           shoots,
           activeShootId,
+          scriptProjects,
+          activeScriptProjectId,
         })
       );
     } catch (e) {
       console.error('Erro ao salvar workspace:', e);
     }
-  }, [user?.id, equipments, kits, clients, projects, shoots, activeShootId, isLoaded]);
+  }, [user?.id, equipments, kits, clients, projects, shoots, activeShootId, scriptProjects, activeScriptProjectId, isLoaded]);
 
   // 4. Salvar diretório de usuários
   const saveDirectory = (newDir: UserProfile[]) => {
@@ -479,6 +498,101 @@ export function AppStoreProvider({ children }: { children: React.ReactNode }) {
     });
   };
 
+  // -------------------------------------------------------------
+  // MÓDULO DE PROJETOS DE ROTEIRO INDEPENDENTES (Seções 1 a 13 do Master Correction Prompt)
+  // -------------------------------------------------------------
+  const createScriptProject = (initialTitle?: string, clientId?: string): ScriptProject => {
+    const newProject: ScriptProject = {
+      id: `script_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+      user_id: user?.id,
+      client_id: clientId || '',
+      title: initialTitle || 'Novo Roteiro',
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+      status: 'draft',
+      stage: 'idle',
+      brief: null,
+      script: null,
+      versions: [],
+      conversation: [
+        {
+          id: 'msg-init',
+          sender: 'criador_roteiro',
+          senderTitle: 'Criador de Roteiro',
+          text: 'Me conta o que você precisa gravar.',
+          timestamp: new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
+          stage: 'idle',
+          suggestedActions: [
+            { label: '🎙️ Falar por Áudio', action: 'start_audio', variant: 'primary' },
+            { label: 'Vídeo para barbearia com cortes em alta', action: 'example_barber', variant: 'outline' },
+            { label: 'Depoimento institucional de cliente', action: 'example_testimonial', variant: 'outline' },
+            { label: 'Apresentação comercial e vendas', action: 'example_sales', variant: 'outline' },
+          ],
+        },
+      ],
+      user_edits: {},
+      is_approved: false,
+    };
+
+    setScriptProjects((prev) => [newProject, ...prev]);
+    setActiveScriptProjectId(newProject.id);
+    return newProject;
+  };
+
+  const selectScriptProject = (id: string) => {
+    setActiveScriptProjectId(id);
+  };
+
+  const updateScriptProject = (id: string, updates: Partial<ScriptProject>) => {
+    setScriptProjects((prev) =>
+      prev.map((sp) =>
+        sp.id === id
+          ? {
+              ...sp,
+              ...updates,
+              updated_at: new Date().toISOString(),
+            }
+          : sp
+      )
+    );
+  };
+
+  const renameScriptProject = (id: string, newTitle: string) => {
+    if (!newTitle.trim()) return;
+    updateScriptProject(id, { title: newTitle.trim() });
+  };
+
+  const deleteScriptProject = (id: string) => {
+    setScriptProjects((prev) => {
+      const remaining = prev.filter((sp) => sp.id !== id);
+      if (activeScriptProjectId === id) {
+        setActiveScriptProjectId(remaining[0]?.id || '');
+      }
+      return remaining;
+    });
+  };
+
+  const addScriptVersion = (id: string, script: any, note?: string) => {
+    setScriptProjects((prev) =>
+      prev.map((sp) => {
+        if (sp.id !== id) return sp;
+        const nextVer = (sp.versions?.length || 0) + 1;
+        const newVersion: ScriptVersionRecord = {
+          version: nextVer,
+          timestamp: new Date().toISOString(),
+          script: JSON.parse(JSON.stringify(script)),
+          note: note || `Versão ${nextVer}`,
+        };
+        return {
+          ...sp,
+          versions: [...(sp.versions || []), newVersion],
+          updated_at: new Date().toISOString(),
+        };
+      })
+    );
+  };
+
+  const activeScriptProject = scriptProjects.find((sp) => sp.id === activeScriptProjectId) || null;
   const activeShoot = shoots.find((s) => s.id === activeShootId) || shoots[0] || null;
   const isAuthenticated = Boolean(user);
   const isAdmin = Boolean(user?.role === 'admin' || user?.email === 'rangelmaker@gmail.com');
@@ -513,6 +627,15 @@ export function AppStoreProvider({ children }: { children: React.ReactNode }) {
         toggleChecklistItem,
         setActiveShootId: setActiveShootIdState,
         setGoogleCalendarConnected,
+        scriptProjects,
+        activeScriptProjectId,
+        activeScriptProject,
+        createScriptProject,
+        selectScriptProject,
+        updateScriptProject,
+        renameScriptProject,
+        deleteScriptProject,
+        addScriptVersion,
       }}
     >
       {children}

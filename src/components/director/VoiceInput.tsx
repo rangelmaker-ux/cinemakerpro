@@ -19,6 +19,10 @@ export function VoiceInput({ onSendMessage, disabled = false, placeholder = 'Fal
 
   const recognitionRef = useRef<any>(null);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
+  const isExplicitlyRecordingRef = useRef<boolean>(false);
+  const accumulatedTranscriptRef = useRef<string>('');
+  const sessionTranscriptRef = useRef<string>('');
+  const mediaStreamRef = useRef<MediaStream | null>(null);
 
   // Inicializar Web Speech API (reconhecimento de voz nativo em pt-BR)
   useEffect(() => {
@@ -38,26 +42,49 @@ export function VoiceInput({ onSendMessage, disabled = false, placeholder = 'Fal
         recognition.lang = 'pt-BR';
 
         recognition.onresult = (event: any) => {
-          let currentTranscript = '';
-          for (let i = event.resultIndex; i < event.results.length; i++) {
-            currentTranscript += event.results[i][0].transcript;
+          let sessionText = '';
+          for (let i = 0; i < event.results.length; i++) {
+            sessionText += event.results[i][0].transcript;
           }
-          if (currentTranscript.trim()) {
-            setInputText(currentTranscript);
-          }
+          sessionTranscriptRef.current = sessionText;
+          const full = (accumulatedTranscriptRef.current + ' ' + sessionText).trim();
+          setInputText(full);
         };
 
         recognition.onerror = (event: any) => {
-          console.warn('Erro no reconhecimento de voz:', event.error);
+          // 'no-speech' acontece quando o usuário fica em silêncio pensando.
+          // SILÊNCIO NÃO DEVE PARAR A GRAVAÇÃO!
+          if (event.error === 'no-speech') {
+            return;
+          }
           if (event.error === 'not-allowed') {
             setSpeechError('Permissão do microfone negada no navegador.');
+            stopRecording(false);
+            return;
           }
-          stopRecording(false);
+          console.warn('Evento informativo no reconhecimento de voz:', event.error);
         };
 
         recognition.onend = () => {
-          // Finalização normal
-          setIsRecording(false);
+          // Se o usuário AINDA está gravando e o navegador finalizou por silêncio/pausa:
+          // REINICIA AUTOMATICAMENTE! O usuário decide quando parar!
+          if (isExplicitlyRecordingRef.current) {
+            if (sessionTranscriptRef.current.trim()) {
+              accumulatedTranscriptRef.current = (
+                accumulatedTranscriptRef.current +
+                ' ' +
+                sessionTranscriptRef.current
+              ).trim();
+              sessionTranscriptRef.current = '';
+            }
+            try {
+              recognition.start();
+            } catch (err) {
+              // Silently ignore se já estiver reiniciando
+            }
+          } else {
+            setIsRecording(false);
+          }
         };
 
         recognitionRef.current = recognition;
@@ -69,6 +96,9 @@ export function VoiceInput({ onSendMessage, disabled = false, placeholder = 'Fal
 
     return () => {
       if (timerRef.current) clearInterval(timerRef.current);
+      if (mediaStreamRef.current) {
+        mediaStreamRef.current.getTracks().forEach((t) => t.stop());
+      }
       if (recognitionRef.current) {
         try {
           recognitionRef.current.stop();
@@ -77,7 +107,7 @@ export function VoiceInput({ onSendMessage, disabled = false, placeholder = 'Fal
     };
   }, []);
 
-  // Timer de gravação
+  // Timer de gravação contínua
   useEffect(() => {
     if (isRecording) {
       setRecordingSeconds(0);
@@ -89,32 +119,63 @@ export function VoiceInput({ onSendMessage, disabled = false, placeholder = 'Fal
     }
   }, [isRecording]);
 
-  const startRecording = () => {
+  const startRecording = async () => {
     setSpeechError(null);
     if (!speechSupported) {
       setSpeechError('Seu navegador não suporta reconhecimento de voz direto. Digite sua mensagem.');
       return;
     }
 
+    // Solicita acesso ao microfone para manter a captura de hardware ativa e estável
+    try {
+      if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        mediaStreamRef.current = stream;
+      }
+    } catch (e) {
+      console.warn('Permissão de áudio via getUserMedia:', e);
+    }
+
+    isExplicitlyRecordingRef.current = true;
+    accumulatedTranscriptRef.current = '';
+    sessionTranscriptRef.current = '';
+    setInputText('');
+    setIsRecording(true);
+
     try {
       recognitionRef.current?.start();
-      setIsRecording(true);
     } catch (e) {
-      console.warn('Tentativa de reconectar reconhecimento:', e);
-      setIsRecording(true);
+      console.warn('Tentativa de iniciar reconhecimento:', e);
     }
   };
 
   const stopRecording = (shouldSend: boolean = false) => {
+    isExplicitlyRecordingRef.current = false;
+
+    if (mediaStreamRef.current) {
+      mediaStreamRef.current.getTracks().forEach((t) => t.stop());
+      mediaStreamRef.current = null;
+    }
+
     try {
       recognitionRef.current?.stop();
     } catch (e) {}
+
     setIsRecording(false);
 
-    if (shouldSend && inputText.trim()) {
-      onSendMessage(inputText.trim(), true);
+    const fullFinalText = (
+      accumulatedTranscriptRef.current +
+      ' ' +
+      sessionTranscriptRef.current
+    ).trim() || inputText.trim();
+
+    if (shouldSend && fullFinalText) {
+      onSendMessage(fullFinalText, true);
       setInputText('');
     }
+
+    accumulatedTranscriptRef.current = '';
+    sessionTranscriptRef.current = '';
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -155,15 +216,13 @@ export function VoiceInput({ onSendMessage, disabled = false, placeholder = 'Fal
                   <Mic className="w-3.5 h-3.5" />
                 </div>
               </div>
-              <div>
                 <span className="text-xs font-mono font-bold text-red-400 flex items-center gap-2">
-                  <span>OUVINDO EM TEMPO REAL (PT-BR)</span>
+                  <span>GRAVANDO ÁUDIO (PT-BR)</span>
                   <span className="bg-red-500/20 px-1.5 py-0.5 rounded text-[10px]">{formatTimer(recordingSeconds)}</span>
                 </span>
                 <p className="text-[11px] text-zinc-400">
-                  Fale naturalmente. A IA entende ganchos, pausas e termos de produção.
+                  Pode pausar para pensar à vontade — o microfone continuará ouvindo até você clicar em Enviar.
                 </p>
-              </div>
             </div>
 
             <div className="flex items-center gap-2">
