@@ -65,10 +65,14 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
   // 1. Não autenticado
   if (!user) {
     if (pathname === '/login') {
-      return <main className="min-h-screen bg-[#090a0f]">{children}</main>;
+      return (
+        <main className="min-h-screen w-full bg-[#090a0f] flex items-center justify-center p-4 sm:p-6">
+          {children}
+        </main>
+      );
     }
     return (
-      <div className="min-h-screen bg-[#090a0f] flex items-center justify-center">
+      <div className="min-h-screen w-full bg-[#090a0f] flex items-center justify-center">
         <div className="w-8 h-8 rounded-full border-2 border-zinc-700 border-t-zinc-200 animate-spin" />
       </div>
     );
@@ -77,10 +81,14 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
   // 2. Usuário com acesso pausado ou bloqueado
   if (user.status === 'paused' || user.status === 'blocked') {
     if (pathname === '/bloqueado') {
-      return <main className="min-h-screen bg-[#090a0f]">{children}</main>;
+      return (
+        <main className="min-h-screen w-full bg-[#090a0f] flex items-center justify-center p-4 sm:p-6">
+          {children}
+        </main>
+      );
     }
     return (
-      <div className="min-h-screen bg-[#090a0f] flex items-center justify-center">
+      <div className="min-h-screen w-full bg-[#090a0f] flex items-center justify-center">
         <div className="w-8 h-8 rounded-full border-2 border-zinc-700 border-t-zinc-200 animate-spin" />
       </div>
     );

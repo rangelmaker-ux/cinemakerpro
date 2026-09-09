@@ -25,8 +25,8 @@ export default function BloqueadoPage() {
   const whatsappUrl = `https://wa.me/5561999999999?text=${whatsappMessage}`;
 
   return (
-    <div className="min-h-[80vh] flex items-center justify-center py-8 px-4">
-      <div className="w-full max-w-lg bg-[#0f1117] border border-amber-500/20 rounded-2xl p-6 sm:p-8 shadow-2xl shadow-black/90 space-y-6 text-center">
+    <div className="w-full flex items-center justify-center py-6">
+      <div className="w-full max-w-lg bg-[#0f1117] border border-amber-500/20 rounded-2xl p-6 sm:p-8 shadow-2xl shadow-black/90 space-y-6 text-center mx-auto">
         {/* Ícone de Alerta */}
         <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-amber-500/10 border border-amber-500/25 p-3">
           <ShieldAlert className="w-8 h-8 text-amber-400" />

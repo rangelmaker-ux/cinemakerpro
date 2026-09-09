@@ -72,8 +72,8 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-[85vh] flex items-center justify-center py-6 px-4">
-      <div className="w-full max-w-md bg-[#0f1117] border border-white/[0.08] rounded-2xl p-6 sm:p-8 shadow-2xl shadow-black/80 space-y-6">
+    <div className="w-full flex items-center justify-center">
+      <div className="w-full max-w-md bg-[#0f1117] border border-white/[0.08] rounded-2xl p-6 sm:p-8 shadow-2xl shadow-black/80 space-y-6 mx-auto">
         {/* App Logo & Header */}
         <div className="text-center space-y-3">
           <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-zinc-900 border border-white/15 p-2 shadow-inner">

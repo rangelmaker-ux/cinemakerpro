@@ -35,7 +35,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="pt-BR" className="dark">
-      <body className="bg-background min-h-screen text-slate-100 flex antialiased selection:bg-brand/30">
+      <body className="bg-background min-h-screen w-full text-slate-100 flex flex-col antialiased selection:bg-brand/30">
         <AppStoreProvider>
           <AuthGuard>{children}</AuthGuard>
         </AppStoreProvider>
