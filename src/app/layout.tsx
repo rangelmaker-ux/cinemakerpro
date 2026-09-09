@@ -3,6 +3,7 @@ import './globals.css';
 import { AppStoreProvider } from '@/lib/store/local-store';
 import { TopHeader } from '@/components/navigation/TopHeader';
 import { BottomNav } from '@/components/navigation/BottomNav';
+import { Sidebar } from '@/components/navigation/Sidebar';
 
 export const metadata: Metadata = {
   title: 'CineMaker Pro — Assistente do Videomaker',
@@ -17,7 +18,7 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  themeColor: '#080a0f',
+  themeColor: '#090a0f',
   width: 'device-width',
   initialScale: 1,
   maximumScale: 1,
@@ -31,12 +32,22 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="pt-BR" className="dark">
-      <body className="bg-background min-h-screen text-slate-100 flex flex-col antialiased selection:bg-brand/30">
+      <body className="bg-background min-h-screen text-slate-100 flex antialiased selection:bg-brand/30">
         <AppStoreProvider>
-          <div className="flex-1 flex flex-col max-w-md mx-auto w-full min-h-screen shadow-2xl bg-background border-x border-surface-border/40">
-            <TopHeader />
-            <main className="flex-1 pb-24 px-4 pt-3">{children}</main>
-            <BottomNav />
+          {/* Shell Responsivo Desktop + Mobile */}
+          <div className="flex w-full min-h-screen">
+            {/* Sidebar (Desktop) */}
+            <Sidebar />
+
+            {/* Conteúdo Principal Fluid (Desktop & Mobile) */}
+            <div className="flex-1 flex flex-col min-w-0 min-h-screen bg-background">
+              <TopHeader />
+              <main className="flex-1 p-4 sm:p-6 lg:p-8 max-w-7xl w-full mx-auto pb-24 md:pb-8">
+                {children}
+              </main>
+              {/* Bottom Nav (Apenas Mobile) */}
+              <BottomNav />
+            </div>
           </div>
         </AppStoreProvider>
       </body>

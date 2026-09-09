@@ -66,7 +66,7 @@ export default function GravacoesPage() {
       </div>
 
       {/* Lista de Gravações */}
-      <div className="space-y-3">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {filteredShoots.map((shoot) => {
           const kit = kits.find((k) => k.id === shoot.kit_id);
           const checks = shoot.checklist_state;

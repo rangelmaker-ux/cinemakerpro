@@ -24,6 +24,8 @@ interface AppStoreContextType {
   addKit: (kit: Omit<Kit, 'id'>) => void;
   setDefaultKit: (id: string) => void;
   addClient: (cli: Omit<Client, 'id' | 'created_at'>) => Client;
+  updateClient: (id: string, updated: Partial<Client>) => void;
+  deleteClient: (id: string) => void;
   updateClientStatus: (id: string, status: Client['status'], nextAction?: string) => void;
   createShoot: (shoot: Omit<Shoot, 'id'>) => Shoot;
   toggleChecklistItem: (shootId: string, checkId: string) => void;
@@ -112,6 +114,16 @@ export function AppStoreProvider({ children }: { children: React.ReactNode }) {
     return newCli;
   };
 
+  const updateClient = (id: string, updated: Partial<Client>) => {
+    setClients((prev) =>
+      prev.map((c) => (c.id === id ? { ...c, ...updated } : c))
+    );
+  };
+
+  const deleteClient = (id: string) => {
+    setClients((prev) => prev.filter((c) => c.id !== id));
+  };
+
   const updateClientStatus = (id: string, status: Client['status'], nextAction?: string) => {
     setClients((prev) =>
       prev.map((c) => (c.id === id ? { ...c, status, next_action: nextAction || c.next_action } : c))
@@ -159,6 +171,8 @@ export function AppStoreProvider({ children }: { children: React.ReactNode }) {
         addKit,
         setDefaultKit,
         addClient,
+        updateClient,
+        deleteClient,
         updateClientStatus,
         createShoot,
         toggleChecklistItem,

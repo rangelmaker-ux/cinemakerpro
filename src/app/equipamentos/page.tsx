@@ -126,25 +126,27 @@ export default function EquipamentosPage() {
 
       {/* CONTEÚDO DA ABA: KITS */}
       {activeTab === 'kits' && (
-        <div className="space-y-3">
-          <div className="p-3 bg-brand/10 border border-brand/20 rounded-2xl text-[11px] text-brand-light leading-relaxed">
-            💡 <strong>Dica:</strong> Defina seu <strong>Kit Padrão</strong>. Ao iniciar uma nova gravação ou modo rápido, a IA selecionará automaticamente esse kit sem você precisar escolher item por item.
+        <div className="space-y-4">
+          <div className="p-3.5 bg-brand/10 border border-brand/25 rounded-2xl text-xs text-brand-light leading-relaxed">
+            💡 <strong>Kit Padrão Inteligente:</strong> O kit selecionado como padrão é carregado automaticamente pela IA ao iniciar uma nova gravação, recomendando as distâncias focais e luzes exatas que você possui.
           </div>
 
-          {kits.map((kit) => (
-            <KitCard
-              key={kit.id}
-              kit={kit}
-              allEquipments={equipments}
-              onSetDefault={setDefaultKit}
-            />
-          ))}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {kits.map((kit) => (
+              <KitCard
+                key={kit.id}
+                kit={kit}
+                allEquipments={equipments}
+                onSetDefault={setDefaultKit}
+              />
+            ))}
+          </div>
         </div>
       )}
 
       {/* CONTEÚDO DA ABA: EQUIPAMENTOS */}
       {activeTab === 'equipamentos' && (
-        <div className="space-y-2.5">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
           {equipments.map((eq) => (
             <EquipmentCard
               key={eq.id}
