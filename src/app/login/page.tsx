@@ -71,13 +71,6 @@ export default function LoginPage() {
     }
   };
 
-  const handleQuickAdmin = () => {
-    setEmail('rangelmaker@gmail.com');
-    setPassword('250524.Raj');
-    setMode('login');
-    setErrorMsg(null);
-  };
-
   return (
     <div className="min-h-[85vh] flex items-center justify-center py-6 px-4">
       <div className="w-full max-w-md bg-[#0f1117] border border-white/[0.08] rounded-2xl p-6 sm:p-8 shadow-2xl shadow-black/80 space-y-6">
@@ -221,17 +214,6 @@ export default function LoginPage() {
             )}
           </button>
         </form>
-
-        {/* Acesso Rápido Admin */}
-        <div className="pt-2 border-t border-white/[0.06] text-center">
-          <button
-            type="button"
-            onClick={handleQuickAdmin}
-            className="text-[11px] text-zinc-500 hover:text-zinc-300 transition-colors font-mono"
-          >
-            Preencher credenciais do Administrador (Rangel Maker)
-          </button>
-        </div>
       </div>
     </div>
   );

@@ -53,15 +53,16 @@ interface AppStoreContextType {
   createShoot: (shoot: Omit<Shoot, 'id'>) => Shoot;
   toggleChecklistItem: (shootId: string, checkId: string) => void;
   setActiveShootId: (id: string) => void;
+  setGoogleCalendarConnected: (connected: boolean) => void;
 }
 
 const AppStoreContext = createContext<AppStoreContextType | null>(null);
 
-const SESSION_KEY = 'cinemakerpro_active_session_prod';
-const DIRECTORY_KEY = 'cinemakerpro_users_directory_prod';
+const SESSION_KEY = 'cinemakerpro_active_session_v3';
+const DIRECTORY_KEY = 'cinemakerpro_users_directory_v3';
 
 export function AppStoreProvider({ children }: { children: React.ReactNode }) {
-  const [user, setUser] = useState<UserProfile | null>(INITIAL_USER);
+  const [user, setUser] = useState<UserProfile | null>(null);
   const [usersDirectory, setUsersDirectory] = useState<UserProfile[]>(INITIAL_USERS_DIRECTORY);
   const [equipments, setEquipments] = useState<Equipment[]>(INITIAL_EQUIPMENTS);
   const [kits, setKits] = useState<Kit[]>(INITIAL_KITS);
@@ -78,14 +79,12 @@ export function AppStoreProvider({ children }: { children: React.ReactNode }) {
       let directory = INITIAL_USERS_DIRECTORY;
       if (savedDir) {
         const parsed: UserProfile[] = JSON.parse(savedDir);
-        // Remove quaisquer usuários de teste anteriores
         directory = parsed.filter(
           (u) =>
             !['lucas.filmes@gmail.com', 'mari.videomaker@outlook.com', 'thiago.cinema@gmail.com'].includes(
               u.email.toLowerCase()
             )
         );
-        // Garante que o admin oficial sempre exista
         if (!directory.some((u) => u.email === 'rangelmaker@gmail.com')) {
           directory = [INITIAL_USER, ...directory];
         }
@@ -98,11 +97,12 @@ export function AppStoreProvider({ children }: { children: React.ReactNode }) {
         const freshUser = directory.find((u) => u.id === parsedUser.id || u.email === parsedUser.email);
         setUser(freshUser || parsedUser);
       } else {
-        setUser(INITIAL_USER);
+        // NINGUÉM LOGADO POR PADRÃO! QUALQUER PESSOA DEVE ENTRAR OU SE CADASTRAR!
+        setUser(null);
       }
     } catch (e) {
       console.error('Erro ao restaurar sessão:', e);
-      setUser(INITIAL_USER);
+      setUser(null);
     } finally {
       setIsLoaded(true);
     }
@@ -110,9 +110,14 @@ export function AppStoreProvider({ children }: { children: React.ReactNode }) {
 
   // 2. Carregar dados isolados da área de trabalho do usuário
   useEffect(() => {
-    if (!user) return;
+    if (!user) {
+      setClients([]);
+      setProjects([]);
+      setShoots([]);
+      return;
+    }
 
-    const userStorageKey = `cinemakerpro_workspace_prod_${user.id}`;
+    const userStorageKey = `cinemakerpro_workspace_v3_${user.id}`;
     try {
       const savedWorkspace = localStorage.getItem(userStorageKey);
       if (savedWorkspace) {
@@ -230,7 +235,7 @@ export function AppStoreProvider({ children }: { children: React.ReactNode }) {
         experience_level: 'profissional',
         frequent_job_types: ['institucional', 'reels', 'depoimento'],
         subscription_tier: 'studio',
-        google_calendar_connected: true,
+        google_calendar_connected: false,
         created_at: new Date().toISOString(),
       };
       setUser(adminProfile);
@@ -434,6 +439,19 @@ export function AppStoreProvider({ children }: { children: React.ReactNode }) {
     );
   };
 
+  const setGoogleCalendarConnected = (connected: boolean) => {
+    if (!user) return;
+    const updatedUser = { ...user, google_calendar_connected: connected };
+    setUser(updatedUser);
+    localStorage.setItem(SESSION_KEY, JSON.stringify(updatedUser));
+
+    setUsersDirectory((prev) => {
+      const updatedDir = prev.map((u) => (u.id === user.id ? updatedUser : u));
+      localStorage.setItem(DIRECTORY_KEY, JSON.stringify(updatedDir));
+      return updatedDir;
+    });
+  };
+
   const activeShoot = shoots.find((s) => s.id === activeShootId) || shoots[0] || null;
   const isAuthenticated = Boolean(user);
   const isAdmin = Boolean(user?.role === 'admin' || user?.email === 'rangelmaker@gmail.com');
@@ -467,6 +485,7 @@ export function AppStoreProvider({ children }: { children: React.ReactNode }) {
         createShoot,
         toggleChecklistItem,
         setActiveShootId: setActiveShootIdState,
+        setGoogleCalendarConnected,
       }}
     >
       {children}

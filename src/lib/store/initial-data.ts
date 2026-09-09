@@ -10,7 +10,7 @@ export const INITIAL_USER: UserProfile = {
   experience_level: 'profissional',
   frequent_job_types: ['institucional', 'reels', 'depoimento'],
   subscription_tier: 'studio',
-  google_calendar_connected: true,
+  google_calendar_connected: false,
   created_at: new Date().toISOString(),
 };
 
