@@ -26,6 +26,16 @@ export async function GET(req: NextRequest) {
     'openid',
   ].join(' ');
 
+  // Extrai identificador da conta do CineMaker Pro (para persistência no nível de conta)
+  const userId =
+    req.nextUrl.searchParams.get('userId') ||
+    req.cookies.get('cinemaker_user_id')?.value ||
+    '';
+  const userEmail =
+    req.nextUrl.searchParams.get('userEmail') ||
+    req.cookies.get('cinemaker_user_email')?.value ||
+    '';
+
   const googleAuthUrl = new URL('https://accounts.google.com/o/oauth2/v2/auth');
   googleAuthUrl.searchParams.set('client_id', clientId);
   googleAuthUrl.searchParams.set('redirect_uri', redirectUri);
@@ -34,5 +44,25 @@ export async function GET(req: NextRequest) {
   googleAuthUrl.searchParams.set('access_type', 'offline');
   googleAuthUrl.searchParams.set('prompt', 'consent');
 
-  return NextResponse.redirect(googleAuthUrl);
+  // Codifica estado com userId e userEmail para recuperar no callback
+  const stateData = Buffer.from(JSON.stringify({ userId, userEmail })).toString('base64url');
+  googleAuthUrl.searchParams.set('state', stateData);
+
+  const res = NextResponse.redirect(googleAuthUrl);
+  if (userId) {
+    res.cookies.set('cinemaker_user_id', userId, {
+      maxAge: 60 * 60 * 24 * 365,
+      path: '/',
+      sameSite: 'lax',
+    });
+  }
+  if (userEmail) {
+    res.cookies.set('cinemaker_user_email', userEmail, {
+      maxAge: 60 * 60 * 24 * 365,
+      path: '/',
+      sameSite: 'lax',
+    });
+  }
+
+  return res;
 }

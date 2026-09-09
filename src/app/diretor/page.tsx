@@ -209,17 +209,24 @@ function DirectorContent() {
         return;
       }
 
-      // CASO 4: FALTA INFORMAÇÃO CRÍTICA (PRIMEIRO CONTATO VAGO)
-      if (!analysis.isCompleteEnough && !currentScript) {
+      // CASO 4: PRIMEIRO CONTATO (ESTÁGIO IDLE) — DIÁLOGO CONVERSACIONAL ANTES DO ROTEIRO
+      // O Criador de Roteiro ouve, confirma o que entendeu e faz 1 a 2 perguntas focadas
+      if (stage === 'idle' && !currentScript && !analysis.wantsImmediateGeneration) {
         const clarifyMsg: ChatMessage = {
           id: `msg-${Date.now() + 1}`,
-          sender: 'diretor_geral',
-          senderTitle: 'Diretor Geral',
-          text:
-            analysis.missingInfoQuestion ||
-            'Excelente! Me conta um pouco mais sobre o nicho do negócio e qual mensagem central você quer passar nesse vídeo.',
+          sender: 'criador_roteiro',
+          senderTitle: 'Criador de Roteiro',
+          text: `Entendi perfeitamente! Uma produção para ${analysis.brief.client} sobre "${analysis.brief.topic}", estimada em ${analysis.brief.duration_seconds}s.\n\nPara eu calibrar a narrativa e o tom exato antes de escrever:\n1. Quem vai falar para a câmera — você mesmo ou prefere apenas cortes com voz em off?\n2. O foco principal é atrair novos clientes imediatos ou ensinar/posicionar autoridade?`,
           timestamp: new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
           stage: 'clarification',
+          brief: analysis.brief,
+          suggestedActions: [
+            { label: '🎙️ Responder por Áudio', action: 'start_audio', variant: 'primary' },
+            { label: 'Eu falo para a câmera', action: 'send:Eu mesmo vou falar diretamente para a câmera' },
+            { label: 'Voz em off (sem aparecer)', action: 'send:Apenas cortes de cena com voz em off, sem rosto' },
+            { label: 'Atrair clientes novos', action: 'send:Foco total em atrair clientes novos e gerar agendamentos' },
+            { label: '🎯 Pode gerar o roteiro com o que tem!', action: 'send:Pode gerar o roteiro com o que tem!' },
+          ],
         };
         setMessages((prev) => [...prev, clarifyMsg]);
         setStage('clarification');
@@ -227,24 +234,24 @@ function DirectorContent() {
         return;
       }
 
-      // CASO 5: INFORMAÇÃO SUFICIENTE -> GERAR ROTEIRO NARRATIVO DEDICADO
+      // CASO 5: CONTEXTO ESTABELECIDO OU PEDIDO EXPLÍCITO -> CRIADOR DE ROTEIRO GERA NARRATIVA
       const newScript = generateNarrativeScript(analysis.brief, false);
       setCurrentScript(newScript);
       setIsScriptApproved(false);
       setStage('script_review');
 
-      const dgResponse: ChatMessage = {
+      const scriptResponse: ChatMessage = {
         id: `msg-${Date.now() + 1}`,
-        sender: 'diretor_geral',
-        senderTitle: 'Diretor Geral',
-        text: `Entendi perfeitamente! Vídeo de ${analysis.brief.duration_seconds}s para ${analysis.brief.client} focado em "${analysis.brief.topic}", gravado no formato ${analysis.brief.format} para ${analysis.brief.platform}. O Criador de Roteiro estruturou a narrativa abaixo. Revise, edite se desejar ou aprove para liberarmos o Mapa 3D do Estúdio:`,
+        sender: 'criador_roteiro',
+        senderTitle: 'Criador de Roteiro',
+        text: `Perfeito! Com esse contexto alinhado, estruturei o roteiro narrativo abaixo com gancho de retenção nos primeiros 3 segundos, desenvolvimento prático e chamada para ação objetiva.\n\nDá uma olhada com calma. Você pode aprovar direto, pedir para regenerar com outra pegada, ou editar qualquer linha:`,
         timestamp: new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
         stage: 'script_review',
         script: newScript,
         brief: analysis.brief,
       };
 
-      setMessages((prev) => [...prev, dgResponse]);
+      setMessages((prev) => [...prev, scriptResponse]);
       setActiveTab('conversar');
       setIsThinking(false);
     }, 350);
@@ -537,9 +544,20 @@ function DirectorContent() {
                     >
                       <div className="flex items-center gap-1.5 text-[10px] font-mono text-zinc-500 px-1">
                         {!isUser && (
-                          <div className="w-1.5 h-1.5 rounded-full bg-amber-400" />
+                          <div
+                            className={cn(
+                              'w-1.5 h-1.5 rounded-full',
+                              msg.sender === 'criador_roteiro' ? 'bg-purple-400' : 'bg-amber-400'
+                            )}
+                          />
                         )}
-                        <span>{msg.senderTitle}</span>
+                        <span
+                          className={cn(
+                            msg.sender === 'criador_roteiro' ? 'text-purple-300 font-semibold' : ''
+                          )}
+                        >
+                          {msg.senderTitle}
+                        </span>
                         <span>•</span>
                         <span>{msg.timestamp}</span>
                         {msg.isAudio && (
@@ -567,13 +585,19 @@ function DirectorContent() {
                                 key={i}
                                 type="button"
                                 onClick={() => {
-                                  if (action.action === 'example_barber') {
+                                  if (action.action.startsWith('send:')) {
+                                    handleSendMessage(action.action.replace('send:', ''));
+                                  } else if (action.action === 'example_barber') {
                                     handleSendMessage(
                                       'Quero gravar um vídeo de 30 segundos para uma barbearia falando sobre cortes masculinos que estão em alta.'
                                     );
                                   } else if (action.action === 'example_testimonial') {
                                     handleSendMessage(
                                       'Quero gravar um depoimento de cliente institucional de 45 segundos mostrando a transformação real e a satisfação com nosso serviço.'
+                                    );
+                                  } else if (action.action === 'example_sales') {
+                                    handleSendMessage(
+                                      'Quero gravar uma apresentação comercial direta de 30 segundos para atrair novos clientes com foco em resultado rápido.'
                                     );
                                   }
                                 }}

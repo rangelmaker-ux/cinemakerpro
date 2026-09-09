@@ -97,15 +97,16 @@ export function createInitialConversationState(clientName?: string): ProjectConv
     messages: [
       {
         id: 'msg-init',
-        sender: 'diretor_geral',
-        senderTitle: 'Diretor Geral',
-        text: 'Olá! Sou seu Diretor de Produção com IA. Me conta o que você precisa gravar hoje. Você pode falar por áudio clicando no microfone ou digitar aqui.',
+        sender: 'criador_roteiro',
+        senderTitle: 'Criador de Roteiro',
+        text: 'Me conta o que você precisa gravar.',
         timestamp: new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
         stage: 'idle',
         suggestedActions: [
-          { label: '🎙️ Gravar por Áudio', action: 'start_audio', variant: 'primary' },
-          { label: 'Ex: Vídeo de 30s para barbearia', action: 'example_barber', variant: 'outline' },
-          { label: 'Ex: Depoimento de cliente institucional', action: 'example_testimonial', variant: 'outline' },
+          { label: '🎙️ Falar por Áudio', action: 'start_audio', variant: 'primary' },
+          { label: 'Vídeo para barbearia com cortes em alta', action: 'example_barber', variant: 'outline' },
+          { label: 'Depoimento institucional de cliente', action: 'example_testimonial', variant: 'outline' },
+          { label: 'Apresentação comercial de serviço', action: 'example_sales', variant: 'outline' },
         ],
       },
     ],
@@ -127,6 +128,7 @@ export function extractContextFromInput(
   adjustmentDetail?: string;
   isCompleteEnough: boolean;
   missingInfoQuestion?: string;
+  wantsImmediateGeneration?: boolean;
 } {
   const text = rawInput.toLowerCase().trim();
 
@@ -296,10 +298,21 @@ export function extractContextFromInput(
   const isCompleteEnough = !isTooVague && updatedBrief.topic.length > 3;
 
   let missingInfoQuestion: string | undefined = undefined;
-  if (!isCompleteEnough) {
-    missingInfoQuestion =
-      'Excelente! Para eu desenhar a melhor estratégia com a equipe, me conta: qual é o seu nicho ou serviço e o que você gostaria de destacar nesse vídeo?';
-  }
+  // Detecção se o usuário pediu explicitamente para já gerar o roteiro direto
+  const generateKeywords = [
+    'pode gerar',
+    'gera o roteiro',
+    'gera com o que tem',
+    'já pode fazer',
+    'cria o roteiro',
+    'escreve o roteiro',
+    'manda bala',
+    'pode criar',
+    'já pode gerar',
+    'faz o roteiro',
+    'já pode escrever',
+  ];
+  const wantsImmediateGeneration = generateKeywords.some((kw) => text.includes(kw));
 
   return {
     brief: updatedBrief,
@@ -310,6 +323,7 @@ export function extractContextFromInput(
     adjustmentDetail,
     isCompleteEnough,
     missingInfoQuestion,
+    wantsImmediateGeneration,
   };
 }
 

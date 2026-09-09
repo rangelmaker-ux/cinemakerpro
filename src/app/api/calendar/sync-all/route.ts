@@ -1,17 +1,32 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { getValidAccessTokenForUser } from '@/lib/server/google-account-store';
 
 export async function POST(req: NextRequest) {
-  const token = req.cookies.get('gcal_token')?.value;
-
-  if (!token) {
-    return NextResponse.json(
-      { success: false, error: 'Conecte sua conta Google para sincronizar as gravações.' },
-      { status: 401 }
-    );
-  }
-
   try {
-    const { shoots = [] } = await req.json();
+    const body = await req.json().catch(() => ({}));
+    const { shoots = [], userId: bodyUserId } = body;
+
+    const userId =
+      bodyUserId ||
+      req.nextUrl.searchParams.get('userId') ||
+      req.headers.get('x-cinemaker-user-id') ||
+      req.cookies.get('cinemaker_user_id')?.value ||
+      '';
+
+    let token: string | null = null;
+    if (userId) {
+      token = await getValidAccessTokenForUser(userId);
+    }
+    if (!token) {
+      token = req.cookies.get('gcal_token')?.value || null;
+    }
+
+    if (!token) {
+      return NextResponse.json(
+        { success: false, error: 'Conecte sua conta Google para sincronizar as gravações.' },
+        { status: 401 }
+      );
+    }
 
     const syncedResults = [];
 

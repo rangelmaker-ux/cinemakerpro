@@ -140,6 +140,33 @@ export function AppStoreProvider({ children }: { children: React.ReactNode }) {
     }
   }, [user?.id]);
 
+  // 2.5 Sincronizar autorização do Google Calendar no nível de conta CineMaker (Cross-Device: Celular + PC)
+  useEffect(() => {
+    if (!user?.id) return;
+
+    if (typeof document !== 'undefined') {
+      document.cookie = `cinemaker_user_id=${encodeURIComponent(user.id)}; path=/; max-age=31536000; SameSite=Lax`;
+      if (user.email) {
+        document.cookie = `cinemaker_user_email=${encodeURIComponent(user.email)}; path=/; max-age=31536000; SameSite=Lax`;
+      }
+    }
+
+    fetch(
+      `/api/calendar/status?userId=${encodeURIComponent(user.id)}&userEmail=${encodeURIComponent(
+        user.email || ''
+      )}`
+    )
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.connected && !user.google_calendar_connected) {
+          const updated = { ...user, google_calendar_connected: true };
+          setUser(updated);
+          localStorage.setItem(SESSION_KEY, JSON.stringify(updated));
+        }
+      })
+      .catch((err) => console.error('Erro ao checar sincronia Google cross-device:', err));
+  }, [user?.id]);
+
   // 3. Salvar alterações no workspace isolado do usuário atual
   useEffect(() => {
     if (!isLoaded || !user) return;

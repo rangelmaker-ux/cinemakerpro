@@ -50,10 +50,11 @@ export function GoogleCalendarSyncModal({ isOpen, onClose }: GoogleCalendarSyncM
   const [isSyncingShoots, setIsSyncingShoots] = useState<boolean>(false);
   const [syncFeedback, setSyncFeedback] = useState<string | null>(null);
 
-  // Checar status real dos cookies e Google OAuth
+  // Checar status real dos cookies e Google OAuth associados à conta CineMaker
   const checkStatus = async () => {
     try {
-      const res = await fetch('/api/calendar/status');
+      const q = user?.id ? `?userId=${encodeURIComponent(user.id)}&userEmail=${encodeURIComponent(user.email || '')}` : '';
+      const res = await fetch(`/api/calendar/status${q}`);
       if (res.ok) {
         const data = await res.json();
         setHasCredentials(data.hasCredentialsConfigured ?? true);
@@ -78,7 +79,8 @@ export function GoogleCalendarSyncModal({ isOpen, onClose }: GoogleCalendarSyncM
   const loadRealEvents = async () => {
     setIsLoadingEvents(true);
     try {
-      const res = await fetch('/api/calendar/events');
+      const q = user?.id ? `?userId=${encodeURIComponent(user.id)}` : '';
+      const res = await fetch(`/api/calendar/events${q}`);
       if (res.ok) {
         const data = await res.json();
         if (data.connected && data.events) {
@@ -101,9 +103,10 @@ export function GoogleCalendarSyncModal({ isOpen, onClose }: GoogleCalendarSyncM
 
   if (!isOpen) return null;
 
-  // Redireciona para o OAuth Oficial da Google
+  // Redireciona para o OAuth Oficial da Google associando à conta CineMaker
   const handleConnectGoogle = () => {
-    window.location.href = '/api/auth/google';
+    const q = user?.id ? `?userId=${encodeURIComponent(user.id)}&userEmail=${encodeURIComponent(user.email || '')}` : '';
+    window.location.href = `/api/auth/google${q}`;
   };
 
   // Sincronizar diárias do CineMaker Pro diretamente para a Google Agenda Real
@@ -115,7 +118,7 @@ export function GoogleCalendarSyncModal({ isOpen, onClose }: GoogleCalendarSyncM
       const res = await fetch('/api/calendar/sync-all', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ shoots }),
+        body: JSON.stringify({ shoots, userId: user?.id }),
       });
 
       const data = await res.json();
@@ -135,7 +138,8 @@ export function GoogleCalendarSyncModal({ isOpen, onClose }: GoogleCalendarSyncM
   // Desconectar Conta Google
   const handleDisconnect = async () => {
     try {
-      await fetch('/api/calendar/status', { method: 'DELETE' });
+      const q = user?.id ? `?userId=${encodeURIComponent(user.id)}` : '';
+      await fetch(`/api/calendar/status${q}`, { method: 'DELETE' });
     } catch (e) {
       console.error(e);
     }

@@ -1,9 +1,30 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { setGoogleConnectionForUser } from '@/lib/server/google-account-store';
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const code = searchParams.get('code');
   const error = searchParams.get('error');
+  const stateParam = searchParams.get('state');
+
+  // Recupera userId e userEmail do estado de autorização
+  let stateUserId = '';
+  let stateUserEmail = '';
+  if (stateParam) {
+    try {
+      const decoded = JSON.parse(Buffer.from(stateParam, 'base64url').toString('utf8'));
+      stateUserId = decoded.userId || '';
+      stateUserEmail = decoded.userEmail || '';
+    } catch (e) {
+      stateUserId = stateParam;
+    }
+  }
+  if (!stateUserId) {
+    stateUserId = req.cookies.get('cinemaker_user_id')?.value || '';
+  }
+  if (!stateUserEmail) {
+    stateUserEmail = req.cookies.get('cinemaker_user_email')?.value || '';
+  }
 
   // Calcula dinamicamente o Redirect URI
   const host = req.headers.get('x-forwarded-host') || req.headers.get('host') || 'localhost:3000';
@@ -63,6 +84,17 @@ export async function GET(req: NextRequest) {
     } catch (uErr) {
       console.error('Erro ao obter userinfo Google:', uErr);
     }
+
+    // PERSISTÊNCIA NA CONTA CINEMAKER PRO (CROSS-DEVICE: Celular + Computador)
+    const effectiveUserId = stateUserId || stateUserEmail || userEmail || 'default_user';
+    setGoogleConnectionForUser(effectiveUserId, {
+      accessToken: tokenData.access_token,
+      refreshToken: tokenData.refresh_token,
+      expiresInSec: tokenData.expires_in,
+      googleEmail: userEmail,
+      googleName: userName,
+      userEmail: stateUserEmail || undefined,
+    });
 
     // Redireciona com confirmação de sucesso para a Agenda Visual
     const successUrl = new URL('/agenda', req.url);

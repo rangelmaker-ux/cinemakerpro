@@ -1,33 +1,54 @@
 import { NextRequest, NextResponse } from 'next/server';
+import {
+  getGoogleConnectionForUser,
+  getValidAccessTokenForUser,
+} from '@/lib/server/google-account-store';
 
 export async function GET(req: NextRequest) {
-  let token = req.cookies.get('gcal_token')?.value;
-  const refreshToken = req.cookies.get('gcal_refresh_token')?.value;
-  const email = req.cookies.get('gcal_email')?.value || null;
+  const userId =
+    req.nextUrl.searchParams.get('userId') ||
+    req.headers.get('x-cinemaker-user-id') ||
+    req.cookies.get('cinemaker_user_id')?.value ||
+    '';
 
-  // Se o token expirou mas temos refresh token, tenta renovar
-  if (!token && refreshToken) {
-    try {
-      const clientId = process.env.GOOGLE_CLIENT_ID || process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID;
-      const clientSecret = process.env.GOOGLE_CLIENT_SECRET;
-      if (clientId && clientSecret) {
-        const refreshRes = await fetch('https://oauth2.googleapis.com/token', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-          body: new URLSearchParams({
-            client_id: clientId,
-            client_secret: clientSecret,
-            refresh_token: refreshToken,
-            grant_type: 'refresh_token',
-          }),
-        });
-        const refreshData = await refreshRes.json();
-        if (refreshRes.ok && refreshData.access_token) {
-          token = refreshData.access_token;
+  let token: string | null = null;
+  let email: string | null = req.cookies.get('gcal_email')?.value || null;
+
+  // 1. Tenta recuperar token de acesso válido persistido na conta CineMaker
+  if (userId) {
+    token = await getValidAccessTokenForUser(userId);
+    const conn = getGoogleConnectionForUser(userId);
+    if (conn?.googleEmail) email = conn.googleEmail;
+  }
+
+  // 2. Fallback para cookies de sessão se não logado via account store
+  if (!token) {
+    token = req.cookies.get('gcal_token')?.value || null;
+    const refreshToken = req.cookies.get('gcal_refresh_token')?.value;
+
+    if (!token && refreshToken) {
+      try {
+        const clientId = process.env.GOOGLE_CLIENT_ID || process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID;
+        const clientSecret = process.env.GOOGLE_CLIENT_SECRET;
+        if (clientId && clientSecret) {
+          const refreshRes = await fetch('https://oauth2.googleapis.com/token', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: new URLSearchParams({
+              client_id: clientId,
+              client_secret: clientSecret,
+              refresh_token: refreshToken,
+              grant_type: 'refresh_token',
+            }),
+          });
+          const refreshData = await refreshRes.json();
+          if (refreshRes.ok && refreshData.access_token) {
+            token = refreshData.access_token;
+          }
         }
+      } catch (e) {
+        console.error('Falha ao renovar token Google via cookie:', e);
       }
-    } catch (e) {
-      console.error('Falha ao renovar token Google:', e);
     }
   }
 
@@ -92,18 +113,31 @@ export async function GET(req: NextRequest) {
 
 // Criar novo evento diretamente na Google Agenda Real
 export async function POST(req: NextRequest) {
-  const token = req.cookies.get('gcal_token')?.value;
-
-  if (!token) {
-    return NextResponse.json(
-      { success: false, error: 'Faça login com a sua conta Google para sincronizar.' },
-      { status: 401 }
-    );
-  }
-
   try {
     const body = await req.json();
     const { title, date, startTime = '09:00', durationMin = 180, location, description } = body;
+
+    const userId =
+      body.userId ||
+      req.nextUrl.searchParams.get('userId') ||
+      req.headers.get('x-cinemaker-user-id') ||
+      req.cookies.get('cinemaker_user_id')?.value ||
+      '';
+
+    let token: string | null = null;
+    if (userId) {
+      token = await getValidAccessTokenForUser(userId);
+    }
+    if (!token) {
+      token = req.cookies.get('gcal_token')?.value || null;
+    }
+
+    if (!token) {
+      return NextResponse.json(
+        { success: false, error: 'Faça login com a sua conta Google para sincronizar.' },
+        { status: 401 }
+      );
+    }
 
     // Calcular data e hora de início e fim
     const startDateTime = new Date(`${date}T${startTime}:00`);
