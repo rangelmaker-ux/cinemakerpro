@@ -199,7 +199,7 @@ export default function HomePage() {
               </div>
 
               <p className="text-xs text-zinc-400 leading-relaxed">
-                {user.google_calendar_connected
+                {user?.google_calendar_connected
                   ? 'Sincronização ativa. Suas diárias de gravação e reuniões estão alinhadas.'
                   : 'Conecte sua conta do Google para sincronizar diárias de gravação diretamente na sua agenda.'}
               </p>
@@ -211,7 +211,7 @@ export default function HomePage() {
               >
                 <Calendar className="w-3.5 h-3.5 text-zinc-400" />
                 <span>
-                  {user.google_calendar_connected ? 'Sincronizar Agenda Agora' : 'Conectar com o Google'}
+                  {user?.google_calendar_connected ? 'Sincronizar Agenda Agora' : 'Conectar com o Google'}
                 </span>
               </button>
             </div>

@@ -1,15 +1,61 @@
 import { Client, Equipment, Kit, Project, Shoot, UserProfile } from '@/types/database';
 
 export const INITIAL_USER: UserProfile = {
-  id: 'user-01',
+  id: 'usr-admin-rangel',
   name: 'Rangel Maker',
-  email: 'rangel@cinemaker.pro',
+  email: 'rangelmaker@gmail.com',
+  role: 'admin',
+  status: 'active',
+  is_paid: true,
   experience_level: 'profissional',
   frequent_job_types: ['institucional', 'reels', 'depoimento'],
-  subscription_tier: 'pro',
+  subscription_tier: 'studio',
   google_calendar_connected: true,
   created_at: new Date().toISOString(),
 };
+
+export const INITIAL_USERS_DIRECTORY: UserProfile[] = [
+  INITIAL_USER,
+  {
+    id: 'usr-02',
+    name: 'Lucas Silveira',
+    email: 'lucas.filmes@gmail.com',
+    role: 'user',
+    status: 'active',
+    is_paid: true,
+    experience_level: 'intermediario',
+    frequent_job_types: ['reels', 'evento'],
+    subscription_tier: 'pro',
+    google_calendar_connected: false,
+    created_at: new Date(Date.now() - 14 * 86400000).toISOString(),
+  },
+  {
+    id: 'usr-03',
+    name: 'Mariana Costa',
+    email: 'mari.videomaker@outlook.com',
+    role: 'user',
+    status: 'paused',
+    is_paid: false,
+    experience_level: 'profissional',
+    frequent_job_types: ['institucional', 'produto'],
+    subscription_tier: 'pro',
+    google_calendar_connected: true,
+    created_at: new Date(Date.now() - 32 * 86400000).toISOString(),
+  },
+  {
+    id: 'usr-04',
+    name: 'Thiago Ramos',
+    email: 'thiago.cinema@gmail.com',
+    role: 'user',
+    status: 'blocked',
+    is_paid: false,
+    experience_level: 'iniciante',
+    frequent_job_types: ['reels'],
+    subscription_tier: 'free',
+    google_calendar_connected: false,
+    created_at: new Date(Date.now() - 45 * 86400000).toISOString(),
+  },
+];
 
 export const INITIAL_EQUIPMENTS: Equipment[] = [
   {

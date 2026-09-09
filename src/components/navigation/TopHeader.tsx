@@ -2,15 +2,22 @@
 
 import React, { useState } from 'react';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
-import { Clapperboard, Calendar, Settings, Crosshair } from 'lucide-react';
+import Image from 'next/image';
+import { usePathname, useRouter } from 'next/navigation';
+import { Settings, ShieldCheck, LogOut } from 'lucide-react';
 import { useAppStore } from '@/lib/store/local-store';
 import { GoogleCalendarSyncModal } from '@/components/calendar/GoogleCalendarSyncModal';
 
 export function TopHeader() {
   const pathname = usePathname();
-  const { user } = useAppStore();
+  const router = useRouter();
+  const { user, isAdmin, signOut } = useAppStore();
   const [isCalendarOpen, setIsCalendarOpen] = useState(false);
+
+  // Ocultar em telas de autenticação/bloqueio
+  if (pathname === '/login' || pathname === '/bloqueado') {
+    return null;
+  }
 
   const getPageTitle = () => {
     switch (pathname) {
@@ -26,22 +33,34 @@ export function TopHeader() {
         return 'Diárias de Gravação';
       case '/perfil':
         return 'Configurações de Produção';
+      case '/admin':
+        return 'Painel Geral do Administrador';
       default:
         return 'CineMaker Pro';
     }
+  };
+
+  const handleLogout = async () => {
+    await signOut();
+    router.replace('/login');
   };
 
   return (
     <>
       <header className="sticky top-0 z-20 bg-[#0d0e12]/90 backdrop-blur-md border-b border-white/[0.07] px-4 sm:px-6 py-2.5">
         <div className="flex items-center justify-between">
-          {/* Mobile: Logo minimalista */}
+          {/* Mobile: Logo e Nome com o novo ícone */}
           <div className="flex items-center gap-2 md:hidden">
             <Link href="/" className="flex items-center gap-2">
-              <div className="w-7 h-7 rounded-lg bg-zinc-800 border border-white/10 flex items-center justify-center text-white">
-                <Clapperboard className="w-3.5 h-3.5" />
+              <div className="relative w-7 h-7 rounded-lg overflow-hidden border border-white/15 bg-zinc-900 shrink-0">
+                <Image
+                  src="/icon.png"
+                  alt="CineMaker Pro"
+                  fill
+                  className="object-cover"
+                />
               </div>
-              <span className="font-semibold text-xs text-white">CineMaker</span>
+              <span className="font-semibold text-xs text-white">CineMaker Pro</span>
             </Link>
           </div>
 
@@ -52,8 +71,19 @@ export function TopHeader() {
             <h1 className="font-medium text-zinc-200">{getPageTitle()}</h1>
           </div>
 
-          {/* Ações Rápidas: Google Calendar Sync + Perfil */}
+          {/* Ações Rápidas: Google Calendar Sync + Perfil + Admin */}
           <div className="flex items-center gap-2">
+            {isAdmin && (
+              <Link
+                href="/admin"
+                className="flex items-center gap-1.5 px-2.5 py-1.5 bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/25 rounded-lg text-[11px] font-mono text-emerald-300 transition-colors"
+                title="Painel do Administrador"
+              >
+                <ShieldCheck className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">Admin</span>
+              </Link>
+            )}
+
             {/* Botão de Integração Google Calendar */}
             <button
               type="button"
@@ -82,7 +112,7 @@ export function TopHeader() {
               <span className="hidden sm:inline">Google Calendar</span>
               <div
                 className={`w-1.5 h-1.5 rounded-full ${
-                  user.google_calendar_connected ? 'bg-emerald-400' : 'bg-zinc-600'
+                  user?.google_calendar_connected ? 'bg-emerald-400' : 'bg-zinc-600'
                 }`}
               />
             </button>
@@ -94,6 +124,15 @@ export function TopHeader() {
             >
               <Settings className="w-3.5 h-3.5" />
             </Link>
+
+            <button
+              type="button"
+              onClick={handleLogout}
+              className="w-7 h-7 rounded-lg bg-white/[0.04] hover:bg-rose-500/15 border border-white/[0.08] flex items-center justify-center text-zinc-400 hover:text-rose-400 transition-colors md:hidden"
+              title="Sair"
+            >
+              <LogOut className="w-3.5 h-3.5" />
+            </button>
           </div>
         </div>
       </header>

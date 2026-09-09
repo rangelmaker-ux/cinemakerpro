@@ -1,32 +1,59 @@
 'use client';
 
 import React, { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { useAppStore } from '@/lib/store/local-store';
-import { User, Calendar, ShieldCheck, Check, ExternalLink, Instagram, RefreshCw } from 'lucide-react';
+import { ShieldCheck, LogOut, Check, ExternalLink, Instagram } from 'lucide-react';
 import { GoogleCalendarSyncModal } from '@/components/calendar/GoogleCalendarSyncModal';
 import { cn } from '@/lib/utils';
 
 export default function PerfilPage() {
-  const { user } = useAppStore();
+  const router = useRouter();
+  const { user, isAdmin, signOut } = useAppStore();
   const [isCalendarOpen, setIsCalendarOpen] = useState(false);
+
+  const handleLogout = async () => {
+    await signOut();
+    router.replace('/login');
+  };
+
+  if (!user) {
+    return null;
+  }
 
   return (
     <>
       <div className="space-y-6 max-w-2xl">
         {/* Identificação do Usuário */}
-        <div className="bg-[#111318] border border-white/[0.08] rounded-2xl p-6 flex items-center gap-4">
-          <div className="w-12 h-12 rounded-xl bg-zinc-800 border border-white/10 flex items-center justify-center text-white text-base font-semibold shrink-0">
-            {user.name.charAt(0)}
-          </div>
-          <div className="min-w-0 flex-1">
-            <div className="flex items-center gap-2">
-              <h2 className="text-base font-semibold text-white truncate">{user.name}</h2>
-              <span className="text-[10px] font-mono text-zinc-400 bg-white/[0.05] border border-white/10 px-2 py-0.2 rounded">
-                PRO
-              </span>
+        <div className="bg-[#111318] border border-white/[0.08] rounded-2xl p-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div className="flex items-center gap-4 min-w-0">
+            <div className="w-12 h-12 rounded-xl bg-zinc-800 border border-white/10 flex items-center justify-center text-white text-base font-semibold shrink-0">
+              {user.name.charAt(0)}
             </div>
-            <p className="text-xs text-zinc-400 font-mono mt-0.5 truncate">{user.email}</p>
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center gap-2">
+                <h2 className="text-base font-semibold text-white truncate">{user.name}</h2>
+                <span className="text-[10px] font-mono text-zinc-400 bg-white/[0.05] border border-white/10 px-2 py-0.2 rounded uppercase">
+                  {user.subscription_tier || 'PRO'}
+                </span>
+                {isAdmin && (
+                  <span className="text-[10px] font-mono text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.2 rounded">
+                    ADMIN
+                  </span>
+                )}
+              </div>
+              <p className="text-xs text-zinc-400 font-mono mt-0.5 truncate">{user.email}</p>
+            </div>
           </div>
+
+          <button
+            type="button"
+            onClick={handleLogout}
+            className="px-3.5 py-2 bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/20 text-rose-300 rounded-xl text-xs font-medium flex items-center gap-2 transition-colors self-start sm:self-auto"
+          >
+            <LogOut className="w-3.5 h-3.5" />
+            <span>Sair da Conta</span>
+          </button>
         </div>
 
         {/* INTEGRAÇÃO GOOGLE CALENDAR OFICIAL */}
@@ -100,7 +127,7 @@ export default function PerfilPage() {
           <div className="flex items-center gap-2">
             <ShieldCheck className="w-4 h-4 text-zinc-400" />
             <h3 className="text-xs font-mono font-semibold uppercase tracking-wider text-zinc-300">
-              Plano de Assinatura
+              Status da Assinatura
             </h3>
           </div>
 
@@ -108,16 +135,27 @@ export default function PerfilPage() {
             <div className="p-3.5 bg-white/[0.04] border border-white/15 rounded-xl flex items-center justify-between">
               <div>
                 <div className="flex items-center gap-2">
-                  <span className="font-semibold text-white">Plano Profissional</span>
-                  <span className="text-[9px] font-mono bg-white text-zinc-950 font-bold px-1.5 py-0.2 rounded">
-                    ATIVO
+                  <span className="font-semibold text-white">
+                    {user.subscription_tier === 'studio' ? 'Plano Studio' : 'Plano Profissional'}
+                  </span>
+                  <span
+                    className={cn(
+                      'text-[9px] font-mono font-bold px-1.5 py-0.2 rounded',
+                      user.status === 'active'
+                        ? 'bg-emerald-400 text-zinc-950'
+                        : 'bg-amber-400 text-zinc-950'
+                    )}
+                  >
+                    {user.status === 'active' ? 'LIBERADO' : 'PAUSADO'}
                   </span>
                 </div>
                 <p className="text-[11px] text-zinc-400 mt-0.5">
                   Diretor IA ilimitado, Kits personalizados, Mini CRM e Sincronia Google Calendar
                 </p>
               </div>
-              <span className="font-mono text-sm font-semibold text-white">R$ 49,90/mês</span>
+              <span className="font-mono text-sm font-semibold text-white">
+                {user.subscription_tier === 'studio' ? 'R$ 99,90/mês' : 'R$ 49,90/mês'}
+              </span>
             </div>
           </div>
         </div>

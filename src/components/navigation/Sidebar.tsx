@@ -2,7 +2,8 @@
 
 import React, { useState } from 'react';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import Image from 'next/image';
+import { usePathname, useRouter } from 'next/navigation';
 import {
   LayoutGrid,
   Clapperboard,
@@ -11,7 +12,8 @@ import {
   Layers,
   Calendar,
   Settings,
-  Plus,
+  ShieldCheck,
+  LogOut,
 } from 'lucide-react';
 import { useAppStore } from '@/lib/store/local-store';
 import { GoogleCalendarSyncModal } from '@/components/calendar/GoogleCalendarSyncModal';
@@ -19,8 +21,14 @@ import { cn } from '@/lib/utils';
 
 export function Sidebar() {
   const pathname = usePathname();
-  const { user } = useAppStore();
+  const router = useRouter();
+  const { user, isAdmin, signOut } = useAppStore();
   const [isCalendarOpen, setIsCalendarOpen] = useState(false);
+
+  // Não exibe a barra lateral na tela de login ou bloqueio
+  if (pathname === '/login' || pathname === '/bloqueado') {
+    return null;
+  }
 
   const navItems = [
     { href: '/', label: 'Visão Geral', icon: LayoutGrid },
@@ -30,14 +38,25 @@ export function Sidebar() {
     { href: '/equipamentos', label: 'Kits & Inventário', icon: Layers },
   ];
 
+  const handleLogout = async () => {
+    await signOut();
+    router.replace('/login');
+  };
+
   return (
     <>
       <aside className="hidden md:flex flex-col w-60 bg-[#0d0e12] border-r border-white/[0.07] h-screen sticky top-0 shrink-0 select-none z-30">
         {/* Brand Header */}
         <div className="p-4 border-b border-white/[0.07]">
           <Link href="/" className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-lg bg-zinc-800 border border-white/15 flex items-center justify-center text-white">
-              <Clapperboard className="w-4 h-4 text-zinc-100" />
+            <div className="relative w-8 h-8 rounded-lg overflow-hidden border border-white/15 bg-zinc-900 shrink-0">
+              <Image
+                src="/icon.png"
+                alt="CineMaker Pro"
+                fill
+                className="object-cover"
+                priority
+              />
             </div>
             <div>
               <div className="flex items-center gap-1.5">
@@ -92,6 +111,32 @@ export function Sidebar() {
               </Link>
             );
           })}
+
+          {/* Se for Administrador, exibe link para Painel Admin */}
+          {isAdmin && (
+            <div className="pt-3">
+              <span className="px-2.5 text-[9px] uppercase font-mono tracking-widest text-zinc-500 block mb-1.5">
+                Administração
+              </span>
+              <Link
+                href="/admin"
+                className={cn(
+                  'flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-xs transition-colors',
+                  pathname === '/admin'
+                    ? 'bg-white/[0.08] text-white font-medium'
+                    : 'text-zinc-400 hover:text-zinc-200 hover:bg-white/[0.04]'
+                )}
+              >
+                <ShieldCheck
+                  className={cn(
+                    'w-4 h-4 shrink-0',
+                    pathname === '/admin' ? 'text-emerald-400' : 'text-zinc-500'
+                  )}
+                />
+                <span>Painel Admin</span>
+              </Link>
+            </div>
+          )}
         </nav>
 
         {/* Sincronização Google & Footer */}
@@ -126,7 +171,7 @@ export function Sidebar() {
                   Google Calendar
                 </span>
                 <span className="text-[9px] text-zinc-400">
-                  {user.google_calendar_connected ? 'Sincronizado' : 'Conectar agenda'}
+                  {user?.google_calendar_connected ? 'Sincronizado' : 'Conectar agenda'}
                 </span>
               </div>
             </div>
@@ -134,23 +179,48 @@ export function Sidebar() {
             <div
               className={cn(
                 'w-2 h-2 rounded-full',
-                user.google_calendar_connected ? 'bg-emerald-400' : 'bg-zinc-600'
+                user?.google_calendar_connected ? 'bg-emerald-400' : 'bg-zinc-600'
               )}
             />
           </button>
 
-          <Link
-            href="/perfil"
-            className="flex items-center justify-between p-2 rounded-lg hover:bg-white/[0.04] text-zinc-400 hover:text-white transition-colors"
-          >
-            <div className="flex items-center gap-2 min-w-0">
-              <div className="w-6 h-6 rounded-full bg-zinc-800 border border-white/10 flex items-center justify-center text-[10px] font-semibold text-zinc-200">
-                {user.name.charAt(0)}
+          {/* Perfil & Logout */}
+          <div className="flex items-center justify-between p-1.5 rounded-lg bg-white/[0.02] border border-white/[0.05]">
+            <Link
+              href="/perfil"
+              className="flex items-center gap-2 min-w-0 flex-1 hover:opacity-80 transition-opacity"
+            >
+              <div className="w-6 h-6 rounded-full bg-zinc-800 border border-white/10 flex items-center justify-center text-[10px] font-semibold text-zinc-200 shrink-0">
+                {user?.name ? user.name.charAt(0) : 'U'}
               </div>
-              <span className="text-xs truncate">{user.name}</span>
+              <div className="min-w-0">
+                <span className="text-xs truncate block text-zinc-200 font-medium leading-tight">
+                  {user?.name || 'Videomaker'}
+                </span>
+                <span className="text-[9px] font-mono text-zinc-500 block truncate">
+                  {user?.email || ''}
+                </span>
+              </div>
+            </Link>
+
+            <div className="flex items-center gap-1">
+              <Link
+                href="/perfil"
+                className="p-1.5 rounded-lg hover:bg-white/[0.06] text-zinc-400 hover:text-white transition-colors"
+                title="Configurações"
+              >
+                <Settings className="w-3.5 h-3.5" />
+              </Link>
+              <button
+                type="button"
+                onClick={handleLogout}
+                className="p-1.5 rounded-lg hover:bg-rose-500/10 text-zinc-400 hover:text-rose-400 transition-colors"
+                title="Sair da Conta"
+              >
+                <LogOut className="w-3.5 h-3.5" />
+              </button>
             </div>
-            <Settings className="w-3.5 h-3.5 text-zinc-500" />
-          </Link>
+          </div>
         </div>
       </aside>
 

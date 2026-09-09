@@ -11,7 +11,7 @@ interface GoogleCalendarSyncModalProps {
 
 export function GoogleCalendarSyncModal({ isOpen, onClose }: GoogleCalendarSyncModalProps) {
   const { user } = useAppStore();
-  const [isConnected, setIsConnected] = useState(user.google_calendar_connected);
+  const [isConnected, setIsConnected] = useState(user?.google_calendar_connected ?? false);
   const [isSyncing, setIsSyncing] = useState(false);
   const [lastSync, setLastSync] = useState<string>('Hoje às 14:15');
   const [selectedCalendar, setSelectedCalendar] = useState('primary');
@@ -137,7 +137,7 @@ export function GoogleCalendarSyncModal({ isOpen, onClose }: GoogleCalendarSyncM
                 <div className="w-2.5 h-2.5 rounded-full bg-emerald-400" />
                 <div>
                   <span className="font-semibold text-white block">Conta Conectada</span>
-                  <span className="text-[11px] text-zinc-400">{user.email}</span>
+                  <span className="text-[11px] text-zinc-400">{user?.email || '—'}</span>
                 </div>
               </div>
 

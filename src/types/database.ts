@@ -6,11 +6,17 @@ export type VideoType = 'institucional' | 'depoimento' | 'reels' | 'produto' | '
 export type ProjectStatus = 'briefing' | 'preparacao' | 'gravacao' | 'edicao' | 'aprovacao' | 'entregue';
 export type ShootStatus = 'agendado' | 'em_andamento' | 'concluido';
 export type DirectorMode = 'recomendado' | 'rapido' | 'criativo';
+export type UserRole = 'admin' | 'user';
+export type UserStatus = 'active' | 'paused' | 'blocked';
 
 export interface UserProfile {
   id: string;
   email: string;
   name: string;
+  role?: UserRole;
+  status?: UserStatus;
+  is_paid?: boolean;
+  paid_until?: string;
   experience_level: ExperienceLevel;
   frequent_job_types: VideoType[];
   subscription_tier: SubscriptionTier;
