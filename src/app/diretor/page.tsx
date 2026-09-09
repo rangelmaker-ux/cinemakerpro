@@ -3,27 +3,21 @@
 import React, { useState, useEffect, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import {
-  Camera,
-  Sparkles,
+  Crosshair,
+  Sliders,
   HelpCircle,
   Move,
   CheckSquare,
   Film,
   Upload,
-  Layers,
-  SunMedium,
-  Mic,
-  ChevronRight,
-  Zap,
-  Sliders,
-  CheckCircle,
-  AlertTriangle,
+  Camera,
+  CheckCircle2,
+  AlertCircle,
   RotateCcw,
-  Eye,
 } from 'lucide-react';
 import { useAppStore } from '@/lib/store/local-store';
 import { generateAIDirectorLayout, evaluateFramingTest } from '@/lib/ai/provider';
-import { AIDirectorSpatialData, FramingTestFeedback, SpatialElement } from '@/lib/ai/types';
+import { AIDirectorSpatialData, FramingTestFeedback } from '@/lib/ai/types';
 import { DirectorMode } from '@/types/database';
 import { SpatialOverlay } from '@/components/director/SpatialOverlay';
 import { WhyModal } from '@/components/director/WhyModal';
@@ -49,14 +43,12 @@ function DirectorContent() {
     })
   );
 
-  // Sistema de Gavetas / Abas no Painel Lateral
+  // Sistema de Gavetas
   const [activeTab, setActiveTab] = useState<'montagem' | 'takes' | 'enquadramento' | 'checklist'>('montagem');
-
-  // Modal "Por quê?"
   const [isWhyOpen, setIsWhyOpen] = useState(false);
   const [isRecalculating, setIsRecalculating] = useState(false);
 
-  // Estados dos Takes e Checklist gravados
+  // Estados dos Takes e Checklist
   const [doneTakes, setDoneTakes] = useState<number[]>([]);
   const [checks, setChecks] = useState<{ id: string; label: string; done: boolean }[]>([
     { id: 'c1', label: 'Baterias da câmera e luzes 100% carregadas', done: true },
@@ -69,7 +61,6 @@ function DirectorContent() {
     { id: 'c8', label: 'B-Roll de detalhes e processos finalizado', done: false },
   ]);
 
-  // Teste de enquadramento
   const [framingResult, setFramingResult] = useState<FramingTestFeedback | null>(null);
   const [testingFraming, setTestingFraming] = useState(false);
 
@@ -84,7 +75,7 @@ function DirectorContent() {
       });
       setSpatialData(updated);
       setIsRecalculating(false);
-    }, 300);
+    }, 250);
 
     return () => clearTimeout(timer);
   }, [mode, blockedZones, equipments]);
@@ -128,34 +119,34 @@ function DirectorContent() {
 
   return (
     <div className="space-y-6">
-      {/* Top Header do Set com contexto do cliente */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-surface border border-surface-border rounded-2xl p-4">
+      {/* Header do Set */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-[#111318] border border-white/[0.08] rounded-2xl p-4">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-brand/15 text-brand-light flex items-center justify-center font-bold">
-            <Sparkles className="w-5 h-5 text-amber-400" />
+          <div className="w-9 h-9 rounded-xl bg-white/[0.05] border border-white/10 flex items-center justify-center text-white">
+            <Crosshair className="w-4 h-4 text-zinc-200" />
           </div>
           <div>
             <div className="flex items-center gap-2">
-              <h2 className="text-sm font-bold text-white leading-tight">
-                Diretor de Gravação IA
+              <h2 className="text-sm font-semibold text-white">
+                Direção Técnica de Set
               </h2>
-              <span className="text-[10px] font-semibold text-brand-light bg-brand/15 border border-brand/25 px-2 py-0.5 rounded-full">
+              <span className="text-[10px] font-mono text-zinc-400 bg-white/[0.05] border border-white/10 px-2 py-0.5 rounded">
                 {selectedClient?.name || 'Cliente'}
               </span>
             </div>
-            <p className="text-xs text-slate-400 mt-0.5">
-              Montagem física precisa adaptada ao ambiente e ao seu kit
+            <p className="text-[11px] text-zinc-400">
+              Posicionamento angular e mapa de câmera calculado para o espaço
             </p>
           </div>
         </div>
 
-        {/* Seletor dos 3 Modos */}
-        <div className="flex items-center gap-1 bg-surface-raised p-1 rounded-xl border border-surface-border self-start sm:self-auto">
+        {/* Seletor de Modo */}
+        <div className="flex items-center gap-1 bg-black/40 p-1 rounded-xl border border-white/10 self-start sm:self-auto font-mono text-xs">
           {(
             [
               { id: 'recomendado', label: 'Recomendado' },
               { id: 'rapido', label: 'Rápido' },
-              { id: 'criativo', label: 'Criativo' },
+              { id: 'criativo', label: 'Cinematográfico' },
             ] as const
           ).map((m) => (
             <button
@@ -163,10 +154,10 @@ function DirectorContent() {
               type="button"
               onClick={() => setMode(m.id)}
               className={cn(
-                'px-3 py-1.5 rounded-lg text-xs font-semibold transition-all',
+                'px-3 py-1.5 rounded-lg text-xs transition-colors',
                 mode === m.id
-                  ? 'bg-brand text-white shadow-sm'
-                  : 'text-slate-400 hover:text-white'
+                  ? 'bg-white text-zinc-950 font-semibold shadow-sm'
+                  : 'text-zinc-400 hover:text-white'
               )}
             >
               {m.label}
@@ -175,16 +166,16 @@ function DirectorContent() {
         </div>
       </div>
 
-      {/* WORKSPACE PRINCIPAL: LAYOUT DE 2 COLUNAS NO DESKTOP (VIEWFINDER + GAVETAS DE CONTROLE) */}
+      {/* Grid de 2 Colunas: Viewfinder + Gavetas de Produção */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-        {/* COLUNA ESQUERDA: VIEWFINDER DO MONITOR CINE (Lg: 7 colunas) */}
+        {/* Coluna do Viewfinder (7 colunas) */}
         <div className="lg:col-span-7 space-y-3">
           <div className="relative">
             {isRecalculating && (
               <div className="absolute inset-0 z-30 bg-black/60 backdrop-blur-xs rounded-2xl flex items-center justify-center">
-                <div className="bg-surface px-4 py-2.5 rounded-xl border border-surface-border flex items-center gap-2.5 text-xs font-semibold text-white shadow-xl">
-                  <Sparkles className="w-4 h-4 text-brand-light animate-spin" />
-                  <span>Recalculando posições com base no seu kit...</span>
+                <div className="bg-[#111318] px-4 py-2 rounded-xl border border-white/10 flex items-center gap-2 text-xs font-mono text-white shadow-xl">
+                  <div className="w-3 h-3 rounded-full border-2 border-white/30 border-t-white animate-spin" />
+                  <span>Calculando parâmetros espaciais...</span>
                 </div>
               </div>
             )}
@@ -196,10 +187,9 @@ function DirectorContent() {
             />
           </div>
 
-          {/* Barra de Controles da Foto */}
           <div className="flex items-center justify-between gap-3 text-xs">
-            <label className="flex-1 py-2.5 bg-surface hover:bg-surface-raised text-slate-200 font-semibold rounded-xl border border-surface-border flex items-center justify-center gap-2 cursor-pointer transition-colors shadow-sm">
-              <Upload className="w-3.5 h-3.5 text-brand-light" />
+            <label className="flex-1 py-2.5 bg-[#111318] hover:bg-zinc-800 text-zinc-300 font-medium rounded-xl border border-white/10 flex items-center justify-center gap-2 cursor-pointer transition-colors">
+              <Upload className="w-3.5 h-3.5 text-zinc-400" />
               <span>{photoUrl ? 'Substituir Foto do Espaço' : 'Fotografar Ambiente Real'}</span>
               <input
                 type="file"
@@ -214,7 +204,7 @@ function DirectorContent() {
               <button
                 type="button"
                 onClick={handleResetBlocked}
-                className="py-2.5 px-3 bg-surface hover:bg-surface-raised text-slate-400 hover:text-white rounded-xl border border-surface-border flex items-center gap-1.5 transition-colors"
+                className="py-2.5 px-3 bg-[#111318] hover:bg-zinc-800 text-zinc-400 hover:text-white rounded-xl border border-white/10 flex items-center gap-1.5 transition-colors"
                 title="Restaurar posições originais"
               >
                 <RotateCcw className="w-3.5 h-3.5" />
@@ -225,18 +215,18 @@ function DirectorContent() {
             <button
               type="button"
               onClick={() => setIsWhyOpen(true)}
-              className="py-2.5 px-3 bg-surface hover:bg-surface-raised text-brand-light font-semibold rounded-xl border border-surface-border flex items-center gap-1.5 transition-colors"
+              className="py-2.5 px-3 bg-[#111318] hover:bg-zinc-800 text-zinc-300 hover:text-white font-medium rounded-xl border border-white/10 flex items-center gap-1.5 transition-colors"
             >
-              <HelpCircle className="w-3.5 h-3.5" />
+              <HelpCircle className="w-3.5 h-3.5 text-zinc-400" />
               <span>Por quê?</span>
             </button>
           </div>
         </div>
 
-        {/* COLUNA DIREITA: GAVETAS DE CONTROLE ORGANIZADAS POR ABAS (Lg: 5 colunas) */}
-        <div className="lg:col-span-5 bg-surface border border-surface-border rounded-3xl p-5 shadow-sm space-y-4">
-          {/* Menu de Gavetas / Abas */}
-          <div className="grid grid-cols-4 gap-1 bg-surface-raised p-1 rounded-2xl border border-surface-border">
+        {/* Coluna das Gavetas Técnicas (5 colunas) */}
+        <div className="lg:col-span-5 bg-[#111318] border border-white/[0.08] rounded-2xl p-5 space-y-4">
+          {/* Seletor de Gavetas */}
+          <div className="grid grid-cols-4 gap-1 bg-black/40 p-1 rounded-xl border border-white/10">
             {(
               [
                 { id: 'montagem', label: 'Montagem', icon: Sliders },
@@ -254,86 +244,75 @@ function DirectorContent() {
                   type="button"
                   onClick={() => setActiveTab(tab.id)}
                   className={cn(
-                    'py-2 rounded-xl text-xs font-semibold flex flex-col items-center gap-1 transition-all',
+                    'py-2 rounded-lg text-xs font-medium flex flex-col items-center gap-1 transition-colors',
                     isActive
-                      ? 'bg-brand text-white shadow-sm'
-                      : 'text-slate-400 hover:text-slate-200'
+                      ? 'bg-white text-zinc-950 font-semibold'
+                      : 'text-zinc-400 hover:text-zinc-200'
                   )}
                 >
                   <Icon className="w-3.5 h-3.5" />
-                  <span className="text-[10px]">{tab.label}</span>
+                  <span className="text-[10px] font-mono">{tab.label}</span>
                 </button>
               );
             })}
           </div>
 
-          {/* GAVETA 1: MONTAGEM & EQUIPAMENTOS DETECTADOS */}
+          {/* GAVETA: MONTAGEM */}
           {activeTab === 'montagem' && (
-            <div className="space-y-3 animate-fade-in text-xs">
-              <div className="flex items-center justify-between pb-2 border-b border-surface-border">
-                <span className="font-bold text-white">Configuração do Seu Kit</span>
-                <span className="text-[10px] font-semibold text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded-full">
-                  100% no seu inventário
+            <div className="space-y-3 text-xs">
+              <div className="flex items-center justify-between pb-2 border-b border-white/[0.06]">
+                <span className="font-semibold text-white">Especificações do Kit</span>
+                <span className="text-[10px] font-mono text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded">
+                  EQUIPAMENTO PRÓPRIO
                 </span>
               </div>
 
               {/* Lente */}
-              <div className="bg-surface-raised p-3 rounded-2xl border border-surface-border space-y-1">
-                <div className="flex items-center justify-between">
-                  <span className="text-[10px] font-bold uppercase text-slate-400">
-                    Câmera & Lente
-                  </span>
-                  <span className="text-slate-300 font-bold">
-                    {spatialData.cameraSettings.height}
-                  </span>
+              <div className="bg-black/30 p-3 rounded-xl border border-white/[0.06] space-y-1">
+                <div className="flex items-center justify-between font-mono text-[10px] text-zinc-500">
+                  <span>CÂMERA & ÓPTICA</span>
+                  <span>{spatialData.cameraSettings.height}</span>
                 </div>
-                <h4 className="font-semibold text-white">
+                <h4 className="font-medium text-white">
                   {spatialData.cameraSettings.lensName}
                 </h4>
-                <p className="text-[11px] text-slate-400">
+                <p className="text-[11px] text-zinc-400">
                   {spatialData.cameraSettings.shotType}
                 </p>
               </div>
 
               {/* Luz */}
-              <div className="bg-surface-raised p-3 rounded-2xl border border-surface-border space-y-1">
-                <div className="flex items-center justify-between">
-                  <span className="text-[10px] font-bold uppercase text-slate-400">
-                    Iluminação
-                  </span>
-                  <span className="text-slate-300 font-bold">
-                    {spatialData.lightingSettings.keyLightAngle}
-                  </span>
+              <div className="bg-black/30 p-3 rounded-xl border border-white/[0.06] space-y-1">
+                <div className="flex items-center justify-between font-mono text-[10px] text-zinc-500">
+                  <span>ILUMINAÇÃO PRINCIPAL</span>
+                  <span>{spatialData.lightingSettings.keyLightAngle}</span>
                 </div>
-                <h4 className="font-semibold text-white">
+                <h4 className="font-medium text-white">
                   Altura {spatialData.lightingSettings.keyLightHeight}
                 </h4>
-                <p className="text-[11px] text-slate-400">
+                <p className="text-[11px] text-zinc-400">
                   {spatialData.lightingSettings.keyLightModifier}
                 </p>
               </div>
 
               {/* Áudio */}
-              <div className="bg-surface-raised p-3 rounded-2xl border border-surface-border space-y-1">
-                <span className="text-[10px] font-bold uppercase text-slate-400 block">
-                  Captação de Áudio
-                </span>
-                <h4 className="font-semibold text-white">
+              <div className="bg-black/30 p-3 rounded-xl border border-white/[0.06] space-y-1">
+                <span className="font-mono text-[10px] text-zinc-500 block">ÁUDIO</span>
+                <h4 className="font-medium text-white">
                   {spatialData.audioSettings.micType}
                 </h4>
-                <p className="text-[11px] text-slate-400">
+                <p className="text-[11px] text-zinc-400">
                   {spatialData.audioSettings.position}
                 </p>
               </div>
 
-              {/* Prevenção de Erros */}
-              <div className="p-3 bg-surface-raised rounded-2xl border border-surface-border space-y-1.5">
-                <span className="text-[10px] font-bold uppercase text-amber-400 flex items-center gap-1">
-                  <AlertTriangle className="w-3 h-3" />
-                  Cuidados Importantes Neste Ambiente:
+              {/* Cuidados */}
+              <div className="p-3 bg-amber-500/[0.03] rounded-xl border border-amber-500/20 space-y-1">
+                <span className="text-[10px] font-mono font-semibold uppercase text-amber-400 block">
+                  Cuidados Técnicos do Espaço:
                 </span>
                 {spatialData.avoids.map((avoid, idx) => (
-                  <p key={idx} className="text-[11px] text-slate-300 leading-relaxed">
+                  <p key={idx} className="text-[11px] text-zinc-300 leading-relaxed">
                     • {avoid}
                   </p>
                 ))}
@@ -341,13 +320,13 @@ function DirectorContent() {
             </div>
           )}
 
-          {/* GAVETA 2: PLANO DE TAKES */}
+          {/* GAVETA: TAKES */}
           {activeTab === 'takes' && (
-            <div className="space-y-3 animate-fade-in text-xs">
-              <div className="flex items-center justify-between pb-2 border-b border-surface-border">
-                <span className="font-bold text-white">Plano de Cenas Sugerido</span>
-                <span className="text-[10px] text-slate-400">
-                  {doneTakes.length} de {spatialData.takesPlan.length} gravados
+            <div className="space-y-3 text-xs">
+              <div className="flex items-center justify-between pb-2 border-b border-white/[0.06]">
+                <span className="font-semibold text-white">Plano de Cenas</span>
+                <span className="text-[11px] font-mono text-zinc-400">
+                  {doneTakes.length}/{spatialData.takesPlan.length} gravados
                 </span>
               </div>
 
@@ -360,36 +339,36 @@ function DirectorContent() {
                       key={take.sceneNumber}
                       onClick={() => toggleTake(take.sceneNumber)}
                       className={cn(
-                        'p-3 rounded-2xl border transition-all cursor-pointer select-none',
+                        'p-3 rounded-xl border transition-all cursor-pointer select-none',
                         isDone
-                          ? 'bg-emerald-500/10 border-emerald-500/30'
-                          : 'bg-surface-raised border-surface-border hover:border-slate-600'
+                          ? 'bg-emerald-500/[0.05] border-emerald-500/30'
+                          : 'bg-black/30 border-white/[0.06] hover:border-white/20'
                       )}
                     >
                       <div className="flex items-center justify-between mb-1">
-                        <span className="text-[10px] font-bold text-brand-light uppercase">
-                          Cena 0{take.sceneNumber} • {take.framing}
+                        <span className="text-[10px] font-mono font-semibold text-zinc-400 uppercase">
+                          CENA 0{take.sceneNumber} • {take.framing}
                         </span>
                         <div
                           className={cn(
-                            'w-4 h-4 rounded-md flex items-center justify-center text-xs',
-                            isDone ? 'bg-emerald-500 text-white' : 'border border-slate-600'
+                            'w-4 h-4 rounded flex items-center justify-center text-xs',
+                            isDone ? 'bg-emerald-400 text-zinc-950' : 'border border-zinc-600'
                           )}
                         >
-                          {isDone && <CheckCircle className="w-3 h-3" />}
+                          {isDone && <CheckCircle2 className="w-3 h-3 stroke-[3]" />}
                         </div>
                       </div>
 
                       <h4
                         className={cn(
-                          'font-semibold text-white mb-1',
-                          isDone && 'line-through text-slate-400'
+                          'font-medium text-white mb-1',
+                          isDone && 'line-through text-zinc-500'
                         )}
                       >
                         {take.title}
                       </h4>
 
-                      <p className="text-[11px] text-slate-400 leading-relaxed">
+                      <p className="text-[11px] text-zinc-400 leading-relaxed">
                         {take.description}
                       </p>
                     </div>
@@ -399,48 +378,48 @@ function DirectorContent() {
             </div>
           )}
 
-          {/* GAVETA 3: ENQUADRAMENTO */}
+          {/* GAVETA: ENQUADRAMENTO */}
           {activeTab === 'enquadramento' && (
-            <div className="space-y-3 animate-fade-in text-xs">
-              <div className="pb-2 border-b border-surface-border">
-                <span className="font-bold text-white">Validador de Enquadramento</span>
-                <p className="text-[11px] text-slate-400 mt-0.5">
-                  Verifique altura, headroom e equilíbrio de luz
+            <div className="space-y-3 text-xs">
+              <div className="pb-2 border-b border-white/[0.06]">
+                <span className="font-semibold text-white">Validador de Enquadramento</span>
+                <p className="text-[11px] text-zinc-400 mt-0.5">
+                  Verificação de respiro (headroom), linha dos olhos e exposição
                 </p>
               </div>
 
               {!framingResult ? (
-                <div className="p-6 bg-surface-raised rounded-2xl border border-dashed border-slate-700 text-center space-y-3">
-                  <Camera className="w-8 h-8 text-slate-500 mx-auto" />
-                  <p className="text-slate-300 text-xs">
-                    Fotografe através do monitor da câmera montada para verificar headroom e posição dos olhos.
+                <div className="p-6 bg-black/30 rounded-xl border border-dashed border-white/15 text-center space-y-3">
+                  <Camera className="w-8 h-8 text-zinc-500 mx-auto" />
+                  <p className="text-zinc-300 text-xs">
+                    Fotografe através do visor da câmera montada para avaliar a composição final.
                   </p>
                   <button
                     type="button"
                     onClick={runFramingCheck}
                     disabled={testingFraming}
-                    className="w-full py-2.5 bg-brand hover:bg-brand-hover text-white font-semibold rounded-xl shadow-sm transition-all"
+                    className="w-full py-2.5 bg-white hover:bg-zinc-200 text-zinc-950 font-semibold rounded-xl transition-colors"
                   >
-                    {testingFraming ? 'Analisando enquadramento...' : 'Simular Validação de Quadro'}
+                    {testingFraming ? 'Processando imagem...' : 'Simular Validação de Quadro'}
                   </button>
                 </div>
               ) : (
                 <div className="space-y-3">
-                  <div className="p-3 bg-emerald-500/10 border border-emerald-500/30 rounded-2xl flex items-center justify-between">
+                  <div className="p-3 bg-emerald-500/10 border border-emerald-500/30 rounded-xl flex items-center justify-between">
                     <div>
-                      <h4 className="font-bold text-white">Composição Aprovada</h4>
-                      <p className="text-[10px] text-emerald-400">Score de qualidade: 88/100</p>
+                      <h4 className="font-semibold text-white">Enquadramento Aprovado</h4>
+                      <p className="text-[10px] text-emerald-400 font-mono">Precisão técnica: 88/100</p>
                     </div>
-                    <span className="text-[10px] font-bold text-emerald-400 bg-emerald-500/20 px-2 py-1 rounded-lg">
-                      ÓTIMO
+                    <span className="text-[10px] font-mono font-bold text-emerald-400 bg-emerald-500/20 px-2 py-0.5 rounded">
+                      OK
                     </span>
                   </div>
 
-                  <div className="space-y-1.5 bg-surface-raised p-3 rounded-2xl border border-surface-border">
-                    <span className="font-bold text-slate-300 block text-[11px]">Dicas de Ajuste Fino:</span>
+                  <div className="space-y-1.5 bg-black/30 p-3 rounded-xl border border-white/[0.06]">
+                    <span className="font-mono text-[10px] text-zinc-400 uppercase block">Ajustes Sugeridos:</span>
                     {framingResult.actionableTips.map((tip, i) => (
-                      <p key={i} className="text-slate-300 text-[11px] leading-relaxed">
-                        {tip}
+                      <p key={i} className="text-zinc-300 text-[11px] leading-relaxed">
+                        • {tip}
                       </p>
                     ))}
                   </div>
@@ -448,22 +427,22 @@ function DirectorContent() {
                   <button
                     type="button"
                     onClick={() => setFramingResult(null)}
-                    className="w-full py-2 bg-surface-raised hover:bg-slate-800 text-slate-300 rounded-xl border border-surface-border font-semibold text-xs"
+                    className="w-full py-2 bg-white/[0.05] hover:bg-white/10 text-zinc-300 rounded-xl border border-white/10 text-xs"
                   >
-                    Testar Novamente
+                    Repetir Teste
                   </button>
                 </div>
               )}
             </div>
           )}
 
-          {/* GAVETA 4: CHECKLIST SET */}
+          {/* GAVETA: CHECKLIST */}
           {activeTab === 'checklist' && (
-            <div className="space-y-3 animate-fade-in text-xs">
-              <div className="flex items-center justify-between pb-2 border-b border-surface-border">
-                <span className="font-bold text-white">Checklist de Produção</span>
-                <span className="text-[10px] text-emerald-400 font-semibold">
-                  {checks.filter((c) => c.done).length} de {checks.length} concluídos
+            <div className="space-y-3 text-xs">
+              <div className="flex items-center justify-between pb-2 border-b border-white/[0.06]">
+                <span className="font-semibold text-white">Checklist de Set</span>
+                <span className="text-[11px] font-mono text-emerald-400">
+                  {checks.filter((c) => c.done).length}/{checks.length} checados
                 </span>
               </div>
 
@@ -473,19 +452,19 @@ function DirectorContent() {
                     key={item.id}
                     onClick={() => toggleCheck(item.id)}
                     className={cn(
-                      'p-2.5 rounded-xl border flex items-center gap-2.5 cursor-pointer select-none transition-all',
+                      'p-2.5 rounded-xl border flex items-center gap-2.5 cursor-pointer select-none transition-colors',
                       item.done
-                        ? 'bg-emerald-500/10 border-emerald-500/25 text-slate-400'
-                        : 'bg-surface-raised border-surface-border text-slate-200 hover:border-slate-600'
+                        ? 'bg-emerald-500/[0.04] border-emerald-500/20 text-zinc-400'
+                        : 'bg-black/30 border-white/[0.06] text-zinc-200 hover:border-white/20'
                     )}
                   >
                     <div
                       className={cn(
-                        'w-4 h-4 rounded-md flex items-center justify-center text-xs shrink-0',
-                        item.done ? 'bg-emerald-500 text-white' : 'border border-slate-600'
+                        'w-4 h-4 rounded flex items-center justify-center text-xs shrink-0',
+                        item.done ? 'bg-emerald-400 text-zinc-950' : 'border border-zinc-600'
                       )}
                     >
-                      {item.done && <CheckCircle className="w-3 h-3" />}
+                      {item.done && <CheckCircle2 className="w-3 h-3 stroke-[3]" />}
                     </div>
                     <span className={cn('text-xs leading-snug', item.done && 'line-through')}>
                       {item.label}
@@ -498,7 +477,6 @@ function DirectorContent() {
         </div>
       </div>
 
-      {/* Modal "Por quê?" */}
       <WhyModal
         isOpen={isWhyOpen}
         onClose={() => setIsWhyOpen(false)}
@@ -512,9 +490,8 @@ export default function DirectorPage() {
   return (
     <Suspense
       fallback={
-        <div className="flex items-center justify-center p-12 text-slate-400 text-xs font-semibold">
-          <Sparkles className="w-4 h-4 text-brand-light animate-spin mr-2" />
-          <span>Carregando Diretor IA...</span>
+        <div className="flex items-center justify-center p-12 text-zinc-400 text-xs font-mono">
+          <span>Carregando Diretor Técnico...</span>
         </div>
       }
     >

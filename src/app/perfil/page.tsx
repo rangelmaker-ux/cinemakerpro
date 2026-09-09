@@ -2,131 +2,144 @@
 
 import React, { useState } from 'react';
 import { useAppStore } from '@/lib/store/local-store';
-import { User, Calendar, ShieldCheck, Sparkles, Check, ExternalLink, Instagram } from 'lucide-react';
+import { User, Calendar, ShieldCheck, Check, ExternalLink, Instagram, RefreshCw } from 'lucide-react';
+import { GoogleCalendarSyncModal } from '@/components/calendar/GoogleCalendarSyncModal';
 import { cn } from '@/lib/utils';
 
 export default function PerfilPage() {
   const { user } = useAppStore();
-  const [googleConnected, setGoogleConnected] = useState(user.google_calendar_connected);
-
-  const toggleGoogle = () => {
-    setGoogleConnected((prev) => !prev);
-  };
+  const [isCalendarOpen, setIsCalendarOpen] = useState(false);
 
   return (
-    <div className="space-y-4 animate-fade-in pb-8">
-      {/* Header com Dados do Usuário */}
-      <div className="bg-surface border border-surface-border rounded-3xl p-5 text-center relative overflow-hidden shadow-lg">
-        <div className="w-16 h-16 rounded-full bg-gradient-to-tr from-brand-dark to-brand flex items-center justify-center text-white text-xl font-bold mx-auto mb-3 shadow-md shadow-brand/20">
-          {user.name.charAt(0)}
-        </div>
-        <h2 className="text-base font-black text-white">{user.name}</h2>
-        <p className="text-xs text-slate-400 mb-2">{user.email}</p>
-
-        <div className="inline-flex items-center gap-1.5 bg-brand/15 text-brand-light border border-brand/30 px-3 py-1 rounded-full text-[11px] font-bold">
-          <Sparkles className="w-3 h-3 text-amber-300" />
-          <span>Plano PRO Ativo</span>
-        </div>
-      </div>
-
-      {/* INTEGRAÇÃO GOOGLE AGENDA */}
-      <div className="bg-surface border border-surface-border rounded-2xl p-4 shadow-sm space-y-3">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2.5">
-            <div className="w-9 h-9 rounded-xl bg-emerald-500/15 text-emerald-400 flex items-center justify-center">
-              <Calendar className="w-4 h-4" />
-            </div>
-            <div>
-              <h3 className="font-bold text-xs text-white leading-tight">
-                Google Agenda Oficial
-              </h3>
-              <p className="text-[10px] text-slate-400">
-                Sincronização de gravações e detecção de conflitos
-              </p>
-            </div>
+    <>
+      <div className="space-y-6 max-w-2xl">
+        {/* Identificação do Usuário */}
+        <div className="bg-[#111318] border border-white/[0.08] rounded-2xl p-6 flex items-center gap-4">
+          <div className="w-12 h-12 rounded-xl bg-zinc-800 border border-white/10 flex items-center justify-center text-white text-base font-semibold shrink-0">
+            {user.name.charAt(0)}
           </div>
-
-          <button
-            type="button"
-            onClick={toggleGoogle}
-            className={cn(
-              'px-3 py-1.5 rounded-xl text-xs font-bold transition-all active:scale-95',
-              googleConnected
-                ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40'
-                : 'bg-brand hover:bg-brand-hover text-white'
-            )}
-          >
-            {googleConnected ? 'Conectado' : 'Conectar Google'}
-          </button>
-        </div>
-
-        {googleConnected && (
-          <div className="bg-surface-raised p-2.5 rounded-xl text-[11px] text-slate-300 flex items-center justify-between">
-            <span className="text-slate-400">Calendário Selecionado:</span>
-            <span className="font-bold text-white">Gravações & Clientes (Padrão)</span>
-          </div>
-        )}
-      </div>
-
-      {/* PLANOS E ASSINATURA SAAS */}
-      <div className="bg-surface border border-surface-border rounded-2xl p-4 shadow-sm space-y-3">
-        <div className="flex items-center gap-2">
-          <ShieldCheck className="w-4 h-4 text-brand-light" />
-          <h3 className="font-bold text-xs text-white uppercase tracking-wider">
-            Planos CineMaker Pro
-          </h3>
-        </div>
-
-        <div className="space-y-2">
-          {/* Plano Free */}
-          <div className="p-3 bg-surface-raised rounded-xl border border-surface-border/60 flex items-center justify-between text-xs">
-            <div>
-              <span className="font-bold text-white block">FREE</span>
-              <span className="text-[10px] text-slate-400">3 clientes • Diretor IA básico</span>
-            </div>
-            <span className="font-bold text-slate-400">R$ 0</span>
-          </div>
-
-          {/* Plano Pro */}
-          <div className="p-3 bg-brand/10 rounded-xl border border-brand/40 flex items-center justify-between text-xs shadow-sm">
-            <div>
-              <div className="flex items-center gap-1.5">
-                <span className="font-bold text-white">PRO (Seu Plano)</span>
-                <span className="bg-brand text-white text-[9px] font-black px-1.5 py-0.2 rounded-md">
-                  POPULAR
-                </span>
-              </div>
-              <span className="text-[10px] text-brand-light block">
-                Clientes ilimitados • Diretor IA completo • Google Agenda
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-2">
+              <h2 className="text-base font-semibold text-white truncate">{user.name}</h2>
+              <span className="text-[10px] font-mono text-zinc-400 bg-white/[0.05] border border-white/10 px-2 py-0.2 rounded">
+                PRO
               </span>
             </div>
-            <span className="font-black text-brand-light">R$ 49,90/mês</span>
+            <p className="text-xs text-zinc-400 font-mono mt-0.5 truncate">{user.email}</p>
+          </div>
+        </div>
+
+        {/* INTEGRAÇÃO GOOGLE CALENDAR OFICIAL */}
+        <div className="bg-[#111318] border border-white/[0.08] rounded-2xl p-6 space-y-4">
+          <div className="flex items-start justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-white/[0.04] border border-white/10 flex items-center justify-center shrink-0">
+                <svg className="w-5 h-5" viewBox="0 0 24 24">
+                  <path
+                    fill="#4285F4"
+                    d="M23.745 12.27c0-.7-.06-1.4-.19-2.07H12v4.51h6.6c-.29 1.52-1.14 2.82-2.4 3.68v3.05h3.88c2.27-2.09 3.66-5.17 3.66-9.17z"
+                  />
+                  <path
+                    fill="#34A853"
+                    d="M12 24c3.24 0 5.95-1.08 7.93-2.91l-3.88-3.05c-1.08.72-2.45 1.16-4.05 1.16-3.12 0-5.77-2.1-6.72-4.93H1.25v3.15C3.26 21.36 7.33 24 12 24z"
+                  />
+                  <path
+                    fill="#FBBC05"
+                    d="M5.28 14.27c-.25-.72-.38-1.49-.38-2.27s.13-1.55.38-2.27V6.58H1.25C.45 8.17 0 9.98 0 12s.45 3.83 1.25 5.42l4.03-3.15z"
+                  />
+                  <path
+                    fill="#EA4335"
+                    d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.42-3.42C17.95 1.19 15.24 0 12 0 7.33 0 3.26 2.64 1.25 6.58l4.03 3.15c.95-2.83 3.6-4.98 6.72-4.98z"
+                  />
+                </svg>
+              </div>
+              <div>
+                <h3 className="text-sm font-semibold text-white">
+                  Integração Google Calendar
+                </h3>
+                <p className="text-xs text-zinc-400 mt-0.5">
+                  Sincronização bidirecional de diárias e cálculo de tempo de trânsito
+                </p>
+              </div>
+            </div>
+
+            <span
+              className={cn(
+                'text-[10px] font-mono px-2.5 py-1 rounded-full border shrink-0',
+                user.google_calendar_connected
+                  ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/25'
+                  : 'bg-zinc-800 text-zinc-400 border-white/10'
+              )}
+            >
+              {user.google_calendar_connected ? 'Ativo' : 'Desconectado'}
+            </span>
           </div>
 
-          {/* Plano Studio */}
-          <div className="p-3 bg-surface-raised rounded-xl border border-surface-border/60 flex items-center justify-between text-xs">
+          <div className="bg-black/30 border border-white/[0.06] rounded-xl p-3.5 flex items-center justify-between text-xs">
             <div>
-              <span className="font-bold text-white block">STUDIO</span>
-              <span className="text-[10px] text-slate-400">Equipes • Múltiplos usuários • IA expandida</span>
+              <span className="font-mono text-[10px] uppercase text-zinc-500 block">
+                Agenda Vinculada
+              </span>
+              <span className="text-zinc-200 font-medium">
+                {user.google_calendar_connected ? 'Agenda Principal (Padrão)' : 'Nenhuma conta vinculada'}
+              </span>
             </div>
-            <span className="font-bold text-slate-300">R$ 89,90/mês</span>
+
+            <button
+              type="button"
+              onClick={() => setIsCalendarOpen(true)}
+              className="px-3 py-1.5 bg-white text-zinc-950 hover:bg-zinc-200 text-xs font-semibold rounded-lg transition-colors"
+            >
+              {user.google_calendar_connected ? 'Gerenciar Sincronia' : 'Conectar Conta Google'}
+            </button>
           </div>
+        </div>
+
+        {/* PLANO DE ASSINATURA SAAS */}
+        <div className="bg-[#111318] border border-white/[0.08] rounded-2xl p-6 space-y-4">
+          <div className="flex items-center gap-2">
+            <ShieldCheck className="w-4 h-4 text-zinc-400" />
+            <h3 className="text-xs font-mono font-semibold uppercase tracking-wider text-zinc-300">
+              Plano de Assinatura
+            </h3>
+          </div>
+
+          <div className="space-y-2 text-xs">
+            <div className="p-3.5 bg-white/[0.04] border border-white/15 rounded-xl flex items-center justify-between">
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="font-semibold text-white">Plano Profissional</span>
+                  <span className="text-[9px] font-mono bg-white text-zinc-950 font-bold px-1.5 py-0.2 rounded">
+                    ATIVO
+                  </span>
+                </div>
+                <p className="text-[11px] text-zinc-400 mt-0.5">
+                  Diretor IA ilimitado, Kits personalizados, Mini CRM e Sincronia Google Calendar
+                </p>
+              </div>
+              <span className="font-mono text-sm font-semibold text-white">R$ 49,90/mês</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Rodapé do Desenvolvedor */}
+        <div className="text-center pt-2 pb-6 text-xs text-zinc-500 space-y-1">
+          <p>CineMaker Pro — Desenvolvido por Rangel Maker</p>
+          <a
+            href="https://www.instagram.com/rangelmaker_/"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-zinc-400 hover:text-white font-mono transition-colors"
+          >
+            @rangelmaker_
+          </a>
         </div>
       </div>
 
-      {/* RODAPÉ DO PRODUTOR */}
-      <div className="text-center pt-2 pb-4 text-xs text-slate-500">
-        <p className="font-medium">Desenvolvido com visão cinematográfica por</p>
-        <a
-          href="https://www.instagram.com/rangelmaker_/"
-          target="_blank"
-          rel="noopener noreferrer"
-          className="inline-flex items-center gap-1 font-bold text-brand-light hover:underline mt-0.5"
-        >
-          <Instagram className="w-3.5 h-3.5 text-pink-400" />
-          <span>@rangelmaker_</span>
-        </a>
-      </div>
-    </div>
+      <GoogleCalendarSyncModal
+        isOpen={isCalendarOpen}
+        onClose={() => setIsCalendarOpen(false)}
+      />
+    </>
   );
 }

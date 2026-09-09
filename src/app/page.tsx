@@ -1,26 +1,26 @@
 'use client';
 
-import React from 'react';
+import React, { useState } from 'react';
 import Link from 'next/link';
 import {
-  Sparkles,
-  Camera,
-  Calendar,
+  Crosshair,
   Clock,
   MapPin,
   ArrowRight,
-  AlertTriangle,
   Users,
-  Briefcase,
+  Layers,
   Zap,
-  Plus,
-  FileText,
+  Calendar,
+  AlertCircle,
+  CheckCircle2,
+  RefreshCw,
 } from 'lucide-react';
 import { useAppStore } from '@/lib/store/local-store';
-import { formatDate } from '@/lib/utils';
+import { GoogleCalendarSyncModal } from '@/components/calendar/GoogleCalendarSyncModal';
 
 export default function HomePage() {
-  const { clients, activeShoot, kits } = useAppStore();
+  const { clients, activeShoot, kits, user } = useAppStore();
+  const [isCalendarOpen, setIsCalendarOpen] = useState(false);
 
   const defaultKit = kits.find((k) => k.is_default) || kits[0];
 
@@ -30,229 +30,246 @@ export default function HomePage() {
   const posVendaCount = clients.filter((c) => c.status === 'pos_venda').length;
 
   return (
-    <div className="space-y-6 animate-fade-in">
-      {/* 1. HERO STUDIO BANNER (Clean, Pro, Dark Studio) */}
-      <div className="relative overflow-hidden bg-gradient-to-r from-surface to-surface-raised border border-surface-border rounded-3xl p-6 sm:p-8 shadow-xl">
-        <div className="relative z-10 max-w-2xl">
-          <div className="inline-flex items-center gap-2 bg-brand/10 border border-brand/25 px-3 py-1 rounded-full text-[11px] font-semibold text-brand-light mb-3">
-            <Sparkles className="w-3.5 h-3.5 text-amber-400" />
-            <span>Assistente Operacional Audiovisual</span>
-          </div>
-
-          <h2 className="text-2xl sm:text-3xl font-bold tracking-tight text-white mb-2 leading-tight">
-            Diretor de Gravação IA
-          </h2>
-          <p className="text-xs sm:text-sm text-slate-400 mb-6 leading-relaxed">
-            Fotografe o ambiente real e receba a montagem exata de câmera, lente, luz a 45° e microfone baseada no seu kit real.
-          </p>
-
-          <div className="flex flex-wrap items-center gap-3">
-            <Link
-              href="/diretor"
-              className="px-5 py-3 bg-brand hover:bg-brand-hover text-white text-xs font-semibold rounded-xl flex items-center gap-2 shadow-sm transition-all active:scale-98"
-            >
-              <Camera className="w-4 h-4" />
-              <span>Iniciar Escaneamento IA</span>
-            </Link>
-
-            <Link
-              href="/diretor?quick=true"
-              className="px-4 py-3 bg-surface-raised hover:bg-slate-800 text-slate-200 text-xs font-semibold rounded-xl border border-surface-border flex items-center gap-2 transition-all active:scale-98"
-            >
-              <Zap className="w-3.5 h-3.5 text-amber-400" />
-              <span>Modo Rápido (Pressa no Set)</span>
-            </Link>
-          </div>
-        </div>
-
-        {/* Efeito sutil de luz de fundo */}
-        <div className="absolute right-0 top-0 bottom-0 w-1/3 bg-gradient-to-l from-brand/10 to-transparent pointer-events-none" />
-      </div>
-
-      {/* 2. GRID PRINCIPAL DESKTOP (2 Colunas Fluidas) */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Coluna 1 & 2: Próxima Diária & Checklist */}
-        <div className="lg:col-span-2 space-y-6">
-          {activeShoot && (
-            <div className="bg-surface border border-surface-border rounded-3xl p-6 shadow-sm">
-              <div className="flex items-center justify-between mb-4">
-                <div className="flex items-center gap-2">
-                  <span className="relative flex h-2.5 w-2.5">
-                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
-                    <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500" />
-                  </span>
-                  <span className="text-xs font-bold uppercase tracking-wider text-slate-400">
-                    Próxima Gravação Agendada
-                  </span>
-                </div>
-                <span className="text-xs font-semibold text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-3 py-1 rounded-full">
-                  Hoje • 14:00
-                </span>
-              </div>
-
-              <div className="mb-4">
-                <h3 className="text-lg font-bold text-white mb-1">
-                  DF Móveis — Vídeo Institucional Linha 2026
-                </h3>
-                <div className="flex flex-wrap items-center gap-4 text-xs text-slate-400 mt-2">
-                  <div className="flex items-center gap-1.5">
-                    <Clock className="w-3.5 h-3.5 text-slate-500" />
-                    <span>2h estimadas</span>
-                  </div>
-                  {activeShoot.location_address && (
-                    <div className="flex items-center gap-1.5">
-                      <MapPin className="w-3.5 h-3.5 text-slate-500" />
-                      <span>{activeShoot.location_address}</span>
-                    </div>
-                  )}
-                  <div className="flex items-center gap-1.5">
-                    <Briefcase className="w-3.5 h-3.5 text-slate-500" />
-                    <span>Kit: {defaultKit?.name || 'Comercial'}</span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Checklist de Preparação Rápida */}
-              <div className="bg-surface-raised border border-surface-border/60 rounded-2xl p-4 mb-4">
-                <div className="flex items-center justify-between text-xs font-semibold mb-2">
-                  <span className="text-slate-300">Preparação de Equipamento</span>
-                  <span className="text-emerald-400">
-                    {activeShoot.checklist_state.filter((c) => c.done).length} de{' '}
-                    {activeShoot.checklist_state.length} itens prontos
-                  </span>
-                </div>
-                <div className="w-full bg-background h-2 rounded-full overflow-hidden mb-3">
-                  <div
-                    className="bg-emerald-500 h-full transition-all duration-300"
-                    style={{
-                      width: `${Math.round(
-                        (activeShoot.checklist_state.filter((c) => c.done).length /
-                          activeShoot.checklist_state.length) *
-                          100
-                      )}%`,
-                    }}
-                  />
-                </div>
-                <p className="text-[11px] text-slate-400">
-                  Baterias carregadas, cartões formatados e lente 35mm limpa.
-                </p>
-              </div>
-
-              <div className="flex items-center gap-3">
-                <Link
-                  href="/diretor"
-                  className="flex-1 py-3 bg-brand hover:bg-brand-hover text-white text-xs font-semibold rounded-xl flex items-center justify-center gap-2 shadow-sm transition-all active:scale-98"
-                >
-                  <span>Abrir Diretor IA para esta Gravação</span>
-                  <ArrowRight className="w-4 h-4" />
-                </Link>
-                <Link
-                  href="/gravacoes"
-                  className="py-3 px-4 bg-surface-raised hover:bg-slate-800 text-slate-300 text-xs font-semibold rounded-xl border border-surface-border transition-colors"
-                >
-                  Ver Diárias
-                </Link>
-              </div>
+    <>
+      <div className="space-y-6">
+        {/* Set Header / Hero de Produção */}
+        <div className="bg-[#111318] border border-white/[0.08] rounded-2xl p-6 sm:p-8">
+          <div className="max-w-2xl">
+            <div className="flex items-center gap-2 font-mono text-[10px] text-zinc-400 tracking-wider uppercase mb-2">
+              <span className="w-2 h-2 rounded-full bg-emerald-400" />
+              <span>SISTEMA DE DIREÇÃO TÉCNICA E MAPA DE SET</span>
             </div>
-          )}
 
-          {/* Alerta de Deslocamento de Agenda */}
-          <div className="bg-surface border border-amber-500/20 rounded-2xl p-4 flex items-start gap-3">
-            <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
-            <div className="text-xs text-slate-300">
-              <span className="font-semibold text-amber-400 block mb-0.5">
-                Alerta de Deslocamento & Trânsito
-              </span>
-              Sua gravação no SIA Trecho 3 começa às 14:00. O deslocamento no horário de pico está estimado em 35 minutos.
+            <h2 className="text-xl sm:text-2xl font-bold tracking-tight text-white mb-2">
+              Assistente de Posicionamento de Câmera, Luz e Áudio
+            </h2>
+            <p className="text-xs text-zinc-400 mb-6 leading-relaxed">
+              Analisa o espaço real em campo e calcula a posição angular da luz principal (45°),
+              altura da câmera na linha dos olhos e lente recomendada do seu kit.
+            </p>
+
+            <div className="flex flex-wrap items-center gap-3">
+              <Link
+                href="/diretor"
+                className="px-4 py-2.5 bg-white hover:bg-zinc-100 text-zinc-950 text-xs font-semibold rounded-xl flex items-center gap-2 transition-colors"
+              >
+                <Crosshair className="w-4 h-4 text-zinc-900" />
+                <span>Iniciar Escaneamento do Espaço</span>
+              </Link>
+
+              <Link
+                href="/diretor?quick=true"
+                className="px-4 py-2.5 bg-white/[0.05] hover:bg-white/[0.08] text-zinc-300 text-xs font-medium rounded-xl border border-white/10 flex items-center gap-2 transition-colors"
+              >
+                <Zap className="w-3.5 h-3.5 text-amber-400" />
+                <span>Modo Rápido de Set</span>
+              </Link>
             </div>
           </div>
         </div>
 
-        {/* Coluna 3: Pipeline do Mini CRM & Clientes Recentes */}
-        <div className="space-y-6">
-          <div className="bg-surface border border-surface-border rounded-3xl p-6 shadow-sm">
-            <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center gap-2">
-                <Users className="w-4 h-4 text-brand-light" />
-                <h3 className="font-bold text-xs uppercase tracking-wider text-white">
-                  Pipeline de Clientes
-                </h3>
-              </div>
-              <Link
-                href="/clientes"
-                className="text-xs font-semibold text-brand-light hover:underline"
-              >
-                Ver todos
-              </Link>
-            </div>
-
-            {/* Badges de Contagem */}
-            <div className="grid grid-cols-2 gap-2.5 mb-4">
-              <Link
-                href="/clientes?tab=lead"
-                className="bg-surface-raised hover:bg-slate-800/80 p-3 rounded-2xl border border-surface-border transition-colors"
-              >
-                <span className="text-[10px] font-semibold text-slate-400 block">LEADS</span>
-                <span className="text-xl font-bold text-sky-400">{leadsCount}</span>
-              </Link>
-              <Link
-                href="/clientes?tab=orcamento"
-                className="bg-surface-raised hover:bg-slate-800/80 p-3 rounded-2xl border border-surface-border transition-colors"
-              >
-                <span className="text-[10px] font-semibold text-slate-400 block">PROPOSTAS</span>
-                <span className="text-xl font-bold text-amber-400">{orcamentosCount}</span>
-              </Link>
-              <Link
-                href="/clientes?tab=fechado"
-                className="bg-surface-raised hover:bg-slate-800/80 p-3 rounded-2xl border border-surface-border transition-colors"
-              >
-                <span className="text-[10px] font-semibold text-slate-400 block">FECHADOS</span>
-                <span className="text-xl font-bold text-emerald-400">{fechadosCount}</span>
-              </Link>
-              <Link
-                href="/clientes?tab=pos_venda"
-                className="bg-surface-raised hover:bg-slate-800/80 p-3 rounded-2xl border border-surface-border transition-colors"
-              >
-                <span className="text-[10px] font-semibold text-slate-400 block">PÓS-VENDA</span>
-                <span className="text-xl font-bold text-purple-400">{posVendaCount}</span>
-              </Link>
-            </div>
-
-            {/* Lista Compacta de Clientes Ativos */}
-            <div className="space-y-2">
-              {clients.slice(0, 3).map((client) => (
-                <Link
-                  key={client.id}
-                  href={`/clientes`}
-                  className="block p-3 rounded-xl bg-surface-raised hover:bg-slate-800/60 border border-surface-border transition-colors group"
-                >
-                  <div className="flex items-center justify-between">
-                    <h4 className="text-xs font-semibold text-white group-hover:text-brand-light truncate">
-                      {client.name}
-                    </h4>
-                    <span className="text-[10px] text-slate-400 capitalize">
-                      {client.status}
+        {/* Grid de Operações */}
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+          {/* Diária Imediata & Checklist do Set (7 colunas) */}
+          <div className="lg:col-span-7 space-y-4">
+            {activeShoot && (
+              <div className="bg-[#111318] border border-white/[0.08] rounded-2xl p-6 space-y-4">
+                <div className="flex items-center justify-between pb-3 border-b border-white/[0.06]">
+                  <div className="flex items-center gap-2">
+                    <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                    <span className="text-xs font-mono font-semibold uppercase text-zinc-300 tracking-wider">
+                      Próxima Diária
                     </span>
                   </div>
-                  {client.next_action && (
-                    <p className="text-[11px] text-slate-400 truncate mt-1">
-                      {client.next_action}
-                    </p>
-                  )}
-                </Link>
-              ))}
+                  <span className="text-xs font-mono font-semibold text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2.5 py-0.5 rounded-full">
+                    Hoje • 14:00
+                  </span>
+                </div>
+
+                <div>
+                  <h3 className="text-base font-semibold text-white">
+                    DF Móveis — Vídeo Institucional Linha 2026
+                  </h3>
+                  <div className="flex flex-wrap gap-4 text-xs text-zinc-400 mt-2 font-mono">
+                    <div className="flex items-center gap-1.5">
+                      <Clock className="w-3.5 h-3.5 text-zinc-500" />
+                      <span>2h previstas</span>
+                    </div>
+                    {activeShoot.location_address && (
+                      <div className="flex items-center gap-1.5">
+                        <MapPin className="w-3.5 h-3.5 text-zinc-500" />
+                        <span className="truncate">{activeShoot.location_address}</span>
+                      </div>
+                    )}
+                    <div className="flex items-center gap-1.5">
+                      <Layers className="w-3.5 h-3.5 text-zinc-500" />
+                      <span>Kit: {defaultKit?.name || 'Comercial'}</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Preparação de Baterias e Mídia */}
+                <div className="bg-black/30 border border-white/[0.06] rounded-xl p-3.5 space-y-2">
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="font-medium text-zinc-300">Conferência de Equipamentos</span>
+                    <span className="text-emerald-400 font-mono text-[11px]">
+                      {activeShoot.checklist_state.filter((c) => c.done).length} de{' '}
+                      {activeShoot.checklist_state.length} itens checados
+                    </span>
+                  </div>
+                  <div className="w-full bg-zinc-800 h-1.5 rounded-full overflow-hidden">
+                    <div
+                      className="bg-emerald-400 h-full transition-all duration-300"
+                      style={{
+                        width: `${Math.round(
+                          (activeShoot.checklist_state.filter((c) => c.done).length /
+                            activeShoot.checklist_state.length) *
+                            100
+                        )}%`,
+                      }}
+                    />
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-3 pt-1">
+                  <Link
+                    href="/diretor"
+                    className="flex-1 py-2.5 bg-white text-zinc-950 hover:bg-zinc-200 text-xs font-semibold rounded-xl flex items-center justify-center gap-2 transition-colors"
+                  >
+                    <span>Abrir Diretor Técnico</span>
+                    <ArrowRight className="w-3.5 h-3.5" />
+                  </Link>
+
+                  <Link
+                    href="/gravacoes"
+                    className="py-2.5 px-4 bg-white/5 hover:bg-white/10 text-zinc-300 text-xs font-medium rounded-xl border border-white/10 transition-colors"
+                  >
+                    Ver Diárias
+                  </Link>
+                </div>
+              </div>
+            )}
+
+            {/* Alerta de Logística / Deslocamento */}
+            <div className="p-3.5 bg-amber-500/[0.04] border border-amber-500/20 rounded-xl flex items-start gap-3 text-xs text-zinc-300">
+              <AlertCircle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+              <div>
+                <span className="font-semibold text-amber-400 block mb-0.5">
+                  Previsão de Deslocamento
+                </span>
+                Tempo estimado até o endereço do cliente: 35 minutos no trânsito atual.
+              </div>
+            </div>
+          </div>
+
+          {/* CRM & Google Calendar Widget (5 colunas) */}
+          <div className="lg:col-span-5 space-y-4">
+            {/* Widget de Integração Google Calendar */}
+            <div className="bg-[#111318] border border-white/[0.08] rounded-2xl p-5 space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <svg className="w-4 h-4" viewBox="0 0 24 24">
+                    <path
+                      fill="#4285F4"
+                      d="M23.745 12.27c0-.7-.06-1.4-.19-2.07H12v4.51h6.6c-.29 1.52-1.14 2.82-2.4 3.68v3.05h3.88c2.27-2.09 3.66-5.17 3.66-9.17z"
+                    />
+                    <path
+                      fill="#34A853"
+                      d="M12 24c3.24 0 5.95-1.08 7.93-2.91l-3.88-3.05c-1.08.72-2.45 1.16-4.05 1.16-3.12 0-5.77-2.1-6.72-4.93H1.25v3.15C3.26 21.36 7.33 24 12 24z"
+                    />
+                    <path
+                      fill="#FBBC05"
+                      d="M5.28 14.27c-.25-.72-.38-1.49-.38-2.27s.13-1.55.38-2.27V6.58H1.25C.45 8.17 0 9.98 0 12s.45 3.83 1.25 5.42l4.03-3.15z"
+                    />
+                    <path
+                      fill="#EA4335"
+                      d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.42-3.42C17.95 1.19 15.24 0 12 0 7.33 0 3.26 2.64 1.25 6.58l4.03 3.15c.95-2.83 3.6-4.98 6.72-4.98z"
+                    />
+                  </svg>
+                  <h3 className="text-xs font-semibold text-white">Google Calendar</h3>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => setIsCalendarOpen(true)}
+                  className="text-[11px] font-medium text-zinc-400 hover:text-white underline"
+                >
+                  Gerenciar
+                </button>
+              </div>
+
+              <p className="text-xs text-zinc-400 leading-relaxed">
+                {user.google_calendar_connected
+                  ? 'Sincronização ativa. Suas diárias de gravação e reuniões estão alinhadas.'
+                  : 'Conecte sua conta do Google para sincronizar diárias de gravação diretamente na sua agenda.'}
+              </p>
+
+              <button
+                type="button"
+                onClick={() => setIsCalendarOpen(true)}
+                className="w-full py-2 bg-white/[0.04] hover:bg-white/[0.08] border border-white/10 rounded-xl text-xs font-medium text-white flex items-center justify-center gap-2 transition-colors"
+              >
+                <Calendar className="w-3.5 h-3.5 text-zinc-400" />
+                <span>
+                  {user.google_calendar_connected ? 'Sincronizar Agenda Agora' : 'Conectar com o Google'}
+                </span>
+              </button>
             </div>
 
-            <Link
-              href="/clientes"
-              className="mt-4 w-full py-2.5 bg-surface-raised hover:bg-slate-800 text-slate-200 text-xs font-semibold rounded-xl border border-surface-border flex items-center justify-center gap-1.5 transition-colors"
-            >
-              <Plus className="w-3.5 h-3.5" />
-              <span>Gerenciar Mini CRM</span>
-            </Link>
+            {/* Pipeline do CRM */}
+            <div className="bg-[#111318] border border-white/[0.08] rounded-2xl p-5 space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Users className="w-4 h-4 text-zinc-400" />
+                  <h3 className="text-xs font-semibold text-white">Funil de Clientes</h3>
+                </div>
+                <Link
+                  href="/clientes"
+                  className="text-[11px] font-medium text-zinc-400 hover:text-white underline"
+                >
+                  Ver todos
+                </Link>
+              </div>
+
+              <div className="grid grid-cols-4 gap-2 text-center text-xs">
+                <Link
+                  href="/clientes?tab=lead"
+                  className="bg-black/30 hover:bg-white/[0.04] p-2.5 rounded-xl border border-white/[0.06] transition-colors"
+                >
+                  <span className="text-[9px] font-mono text-zinc-500 block uppercase">LEADS</span>
+                  <span className="text-base font-bold text-sky-400 font-mono">{leadsCount}</span>
+                </Link>
+                <Link
+                  href="/clientes?tab=orcamento"
+                  className="bg-black/30 hover:bg-white/[0.04] p-2.5 rounded-xl border border-white/[0.06] transition-colors"
+                >
+                  <span className="text-[9px] font-mono text-zinc-500 block uppercase">PROPOSTAS</span>
+                  <span className="text-base font-bold text-amber-400 font-mono">{orcamentosCount}</span>
+                </Link>
+                <Link
+                  href="/clientes?tab=fechado"
+                  className="bg-black/30 hover:bg-white/[0.04] p-2.5 rounded-xl border border-white/[0.06] transition-colors"
+                >
+                  <span className="text-[9px] font-mono text-zinc-500 block uppercase">EM SET</span>
+                  <span className="text-base font-bold text-emerald-400 font-mono">{fechadosCount}</span>
+                </Link>
+                <Link
+                  href="/clientes?tab=pos_venda"
+                  className="bg-black/30 hover:bg-white/[0.04] p-2.5 rounded-xl border border-white/[0.06] transition-colors"
+                >
+                  <span className="text-[9px] font-mono text-zinc-500 block uppercase">PÓS-VENDA</span>
+                  <span className="text-base font-bold text-zinc-300 font-mono">{posVendaCount}</span>
+                </Link>
+              </div>
+            </div>
           </div>
         </div>
       </div>
-    </div>
+
+      <GoogleCalendarSyncModal
+        isOpen={isCalendarOpen}
+        onClose={() => setIsCalendarOpen(false)}
+      />
+    </>
   );
 }
