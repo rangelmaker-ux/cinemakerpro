@@ -29,6 +29,8 @@ const NAV_ITEMS: NavItem[] = [
   { id: 'clientes', href: '/clientes', label: 'Clientes', icon: Users },
 ];
 
+type InteractionMode = 'idle' | 'tap' | 'drag' | 'confirming' | 'navigating';
+
 export function BottomNav() {
   const pathname = usePathname();
   const router = useRouter();
@@ -39,175 +41,353 @@ export function BottomNav() {
   }
 
   const dockRef = useRef<HTMLDivElement>(null);
-  const itemRefs = useRef<(HTMLDivElement | null)[]>([]);
+  const itemRefs = useRef<(HTMLButtonElement | null)[]>([]);
+  const itemCentersRef = useRef<number[]>([]);
 
-  // Estados de rastreamento de toque e magnificação
-  const [isTouching, setIsTouching] = useState(false);
+  // Estados visuais
+  const [interactionMode, setInteractionMode] = useState<InteractionMode>('idle');
   const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
   const [scales, setScales] = useState<number[]>(() => NAV_ITEMS.map(() => 1));
   const [lifts, setLifts] = useState<number[]>(() => NAV_ITEMS.map(() => 0));
   const [isDwellConfirmed, setIsDwellConfirmed] = useState(false);
   const [isUpwardSwipe, setIsUpwardSwipe] = useState(false);
 
-  // Refs para controle fino de gestos
-  const touchStartPos = useRef<{ x: number; y: number; time: number }>({ x: 0, y: 0, time: 0 });
+  // Refs de controle de gestos e concorrência
+  const touchStartPos = useRef<{ x: number; y: number; time: number; index: number }>({
+    x: 0,
+    y: 0,
+    time: 0,
+    index: 0,
+  });
+  const interactionModeRef = useRef<InteractionMode>('idle');
+  const hoveredIndexRef = useRef<number | null>(null);
   const dwellTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const currentHoverRef = useRef<number | null>(null);
-  const isSwipeRef = useRef(false);
+  const rAFIdRef = useRef<number | null>(null);
+  const pendingTouchXRef = useRef<number | null>(null);
+  const isNavigatingRef = useRef(false);
+  const lastNavTimeRef = useRef(0);
+  const isUpwardSwipeRef = useRef(false);
+  const isDwellConfirmedRef = useRef(false);
 
-  // Calcula magnificação Gaussiana inspirada no macOS Dock adaptada para touchscreen
-  const calculateMagnification = useCallback((touchX: number) => {
-    const spread = 46; // Largura de dispersão Gaussiana em pixels
-    const maxScale = 1.65; // Escala máxima no epicentro do toque
-    const maxLift = 20; // Elevação vertical máxima em pixels
-
-    const newScales = NAV_ITEMS.map((_, idx) => {
-      const el = itemRefs.current[idx];
-      if (!el) return 1;
+  // 1. Atualizar centros dos botões em cache (elimina getBoundingClientRect durante touchmove)
+  const updateItemCenters = useCallback(() => {
+    if (itemRefs.current.length === 0) return;
+    itemCentersRef.current = itemRefs.current.map((el) => {
+      if (!el) return 0;
       const rect = el.getBoundingClientRect();
-      const centerX = rect.left + rect.width / 2;
-      const distX = Math.abs(touchX - centerX);
-
-      // Curva Gaussiana: f(x) = exp(- (x^2) / (2 * spread^2))
-      const factor = Math.exp(-(distX * distX) / (2 * spread * spread));
-      return 1 + (maxScale - 1) * factor;
+      return rect.left + rect.width / 2;
     });
-
-    const newLifts = newScales.map((s) => (s - 1) * (maxLift / (maxScale - 1)));
-
-    // Determina o item com maior aproximação
-    let maxFactor = -1;
-    let closest = 0;
-    newScales.forEach((s, idx) => {
-      if (s > maxFactor) {
-        maxFactor = s;
-        closest = idx;
-      }
-    });
-
-    setScales(newScales);
-    setLifts(newLifts);
-
-    return closest;
   }, []);
 
-  // Reinicia magnificação para repouso (1.0x) com transição elástica suave
-  const resetMagnification = useCallback(() => {
-    setIsTouching(false);
-    setHoveredIndex(null);
-    currentHoverRef.current = null;
-    setIsDwellConfirmed(false);
-    setIsUpwardSwipe(false);
-    isSwipeRef.current = false;
-    setScales(NAV_ITEMS.map(() => 1));
-    setLifts(NAV_ITEMS.map(() => 0));
+  useEffect(() => {
+    updateItemCenters();
+    window.addEventListener('resize', updateItemCenters, { passive: true });
+    window.addEventListener('orientationchange', updateItemCenters, { passive: true });
+    return () => {
+      window.removeEventListener('resize', updateItemCenters);
+      window.removeEventListener('orientationchange', updateItemCenters);
+    };
+  }, [updateItemCenters]);
 
+  // 2. Limpeza e Reset Completo de Estados de Gestos
+  const resetAllGestureStates = useCallback(() => {
+    if (rAFIdRef.current !== null) {
+      cancelAnimationFrame(rAFIdRef.current);
+      rAFIdRef.current = null;
+    }
     if (dwellTimeoutRef.current) {
       clearTimeout(dwellTimeoutRef.current);
       dwellTimeoutRef.current = null;
     }
+
+    pendingTouchXRef.current = null;
+    hoveredIndexRef.current = null;
+    isUpwardSwipeRef.current = false;
+    isDwellConfirmedRef.current = false;
+    interactionModeRef.current = 'idle';
+
+    setInteractionMode('idle');
+    setHoveredIndex(null);
+    setIsDwellConfirmed(false);
+    setIsUpwardSwipe(false);
+    setScales(NAV_ITEMS.map(() => 1));
+    setLifts(NAV_ITEMS.map(() => 0));
   }, []);
 
-  // Início do Toque (Touch Start)
+  // 3. Rota mudou: limpa qualquer resíduo para evitar congelamento entre páginas (Ex: Agenda)
+  useEffect(() => {
+    isNavigatingRef.current = false;
+    resetAllGestureStates();
+  }, [pathname, resetAllGestureStates]);
+
+  // 4. Cleanup ao desmontar o componente
+  useEffect(() => {
+    return () => {
+      if (rAFIdRef.current !== null) cancelAnimationFrame(rAFIdRef.current);
+      if (dwellTimeoutRef.current) clearTimeout(dwellTimeoutRef.current);
+    };
+  }, []);
+
+  // 5. Navegação Imediata e Não-Bloqueante
+  const navigateTo = useCallback(
+    (targetHref: string) => {
+      // Se já estivermos na mesma página, apenas reseta a magnificação
+      if (pathname === targetHref) {
+        resetAllGestureStates();
+        return;
+      }
+
+      // Previne disparos repetidos concorrentes (janela de 300ms)
+      const now = Date.now();
+      if (isNavigatingRef.current && now - lastNavTimeRef.current < 300) {
+        return;
+      }
+
+      lastNavTimeRef.current = now;
+      isNavigatingRef.current = true;
+      interactionModeRef.current = 'navigating';
+      setInteractionMode('navigating');
+
+      // Feedback tátil sutil
+      if (typeof navigator !== 'undefined' && navigator.vibrate) {
+        navigator.vibrate([10, 30]);
+      }
+
+      // Reseta o dock imediatamente antes da navegação para que a próxima tela abra 100% limpa
+      resetAllGestureStates();
+
+      // Navega imediatamente via router do Next.js
+      router.push(targetHref);
+    },
+    [pathname, router, resetAllGestureStates]
+  );
+
+  // 6. Cálculo Gaussiano Matemático Puro (Zero Reflows)
+  const calculateMagnification = useCallback((touchX: number) => {
+    const spread = 46; // Largura Gaussiana em px
+    const maxScale = 1.65; // Escala máxima no epicentro
+    const maxLift = 18; // Elevação vertical em px
+
+    const centers = itemCentersRef.current;
+    if (!centers || centers.length !== NAV_ITEMS.length || centers[0] === 0) {
+      updateItemCenters();
+    }
+
+    let maxFactor = -1;
+    let closest = 0;
+
+    const newScales = NAV_ITEMS.map((_, idx) => {
+      const centerX = itemCentersRef.current[idx];
+      if (!centerX) return 1;
+      const distX = Math.abs(touchX - centerX);
+      const factor = Math.exp(-(distX * distX) / (2 * spread * spread));
+      const scale = 1 + (maxScale - 1) * factor;
+
+      if (factor > maxFactor) {
+        maxFactor = factor;
+        closest = idx;
+      }
+
+      return scale;
+    });
+
+    const newLifts = newScales.map((s) => (s - 1) * (maxLift / (maxScale - 1)));
+
+    return { newScales, newLifts, closest };
+  }, [updateItemCenters]);
+
+  // 7. Agendamento de Magnificação via requestAnimationFrame (60/120fps sem jank)
+  const scheduleMagnificationUpdate = useCallback(
+    (touchX: number) => {
+      pendingTouchXRef.current = touchX;
+      if (rAFIdRef.current !== null) return;
+
+      rAFIdRef.current = requestAnimationFrame(() => {
+        rAFIdRef.current = null;
+        if (pendingTouchXRef.current === null) return;
+
+        const { newScales, newLifts, closest } = calculateMagnification(pendingTouchXRef.current);
+        setScales(newScales);
+        setLifts(newLifts);
+
+        if (hoveredIndexRef.current !== closest) {
+          hoveredIndexRef.current = closest;
+          setHoveredIndex(closest);
+          setIsDwellConfirmed(false);
+          isDwellConfirmedRef.current = false;
+
+          // Haptic leve ao cruzar para outro ícone
+          if (typeof navigator !== 'undefined' && navigator.vibrate) {
+            navigator.vibrate(5);
+          }
+
+          // Reinicia dwell timer (350ms estável)
+          if (dwellTimeoutRef.current) clearTimeout(dwellTimeoutRef.current);
+          dwellTimeoutRef.current = setTimeout(() => {
+            setIsDwellConfirmed(true);
+            isDwellConfirmedRef.current = true;
+            if (typeof navigator !== 'undefined' && navigator.vibrate) {
+              navigator.vibrate(15);
+            }
+          }, 350);
+        }
+      });
+    },
+    [calculateMagnification]
+  );
+
+  // 8. Início do Toque (Touch Start)
   const handleTouchStart = (e: React.TouchEvent) => {
     if (e.touches.length === 0) return;
     const touch = e.touches[0];
-    touchStartPos.current = { x: touch.clientX, y: touch.clientY, time: Date.now() };
-    isSwipeRef.current = false;
+
+    updateItemCenters();
+
+    let initialIdx = 0;
+    let minDiff = Infinity;
+    itemCentersRef.current.forEach((cx, idx) => {
+      const diff = Math.abs(touch.clientX - cx);
+      if (diff < minDiff) {
+        minDiff = diff;
+        initialIdx = idx;
+      }
+    });
+
+    touchStartPos.current = {
+      x: touch.clientX,
+      y: touch.clientY,
+      time: Date.now(),
+      index: initialIdx,
+    };
+
+    interactionModeRef.current = 'tap';
+    setInteractionMode('tap');
+    hoveredIndexRef.current = initialIdx;
+    setHoveredIndex(initialIdx);
+    isUpwardSwipeRef.current = false;
+    isDwellConfirmedRef.current = false;
     setIsUpwardSwipe(false);
     setIsDwellConfirmed(false);
-    setIsTouching(true);
 
-    const closest = calculateMagnification(touch.clientX);
-    setHoveredIndex(closest);
-    currentHoverRef.current = closest;
+    // Renderiza a proximidade inicial
+    scheduleMagnificationUpdate(touch.clientX);
 
-    // Feedback tátil sutil
-    if (typeof navigator !== 'undefined' && navigator.vibrate) {
-      navigator.vibrate(8);
-    }
-
-    // Timer de confirmação por permanência (Dwell ~400ms)
+    // Timer de dwell inicial
     if (dwellTimeoutRef.current) clearTimeout(dwellTimeoutRef.current);
     dwellTimeoutRef.current = setTimeout(() => {
       setIsDwellConfirmed(true);
+      isDwellConfirmedRef.current = true;
       if (typeof navigator !== 'undefined' && navigator.vibrate) {
         navigator.vibrate(15);
       }
-    }, 400);
+    }, 350);
   };
 
-  // Movimento do Toque (Touch Move / Scrub Horizontal + Swipe Vertical)
+  // 9. Movimento do Toque (Touch Move)
   const handleTouchMove = (e: React.TouchEvent) => {
     if (e.touches.length === 0) return;
     const touch = e.touches[0];
+    const deltaX = Math.abs(touch.clientX - touchStartPos.current.x);
     const deltaY = touch.clientY - touchStartPos.current.y;
 
-    // Detecção de Swipe Upward (arrastar 20-40px para cima)
-    if (deltaY < -24 && !isSwipeRef.current) {
-      isSwipeRef.current = true;
-      setIsUpwardSwipe(true);
-      if (typeof navigator !== 'undefined' && navigator.vibrate) {
-        navigator.vibrate(18);
-      }
-    } else if (deltaY >= -15 && isSwipeRef.current) {
-      isSwipeRef.current = false;
-      setIsUpwardSwipe(false);
+    // Se o movimento horizontal passar de 12px, entramos em modo DRAG
+    if (deltaX > 12 && interactionModeRef.current === 'tap') {
+      interactionModeRef.current = 'drag';
+      setInteractionMode('drag');
     }
 
-    const closest = calculateMagnification(touch.clientX);
-
-    // Se o dedo deslizou para outro ícone, reinicia o timer de dwell
-    if (closest !== currentHoverRef.current) {
-      currentHoverRef.current = closest;
-      setHoveredIndex(closest);
-      setIsDwellConfirmed(false);
-
-      if (typeof navigator !== 'undefined' && navigator.vibrate) {
-        navigator.vibrate(5);
-      }
-
-      if (dwellTimeoutRef.current) clearTimeout(dwellTimeoutRef.current);
-      dwellTimeoutRef.current = setTimeout(() => {
-        setIsDwellConfirmed(true);
+    // No modo drag ou confirming, processamos gestos contínuos
+    if (interactionModeRef.current === 'drag' || interactionModeRef.current === 'confirming') {
+      // Gesto de confirmação para cima (Swipe Upward < -22px)
+      if (deltaY < -22 && !isUpwardSwipeRef.current) {
+        isUpwardSwipeRef.current = true;
+        setIsUpwardSwipe(true);
+        interactionModeRef.current = 'confirming';
+        setInteractionMode('confirming');
         if (typeof navigator !== 'undefined' && navigator.vibrate) {
-          navigator.vibrate(15);
+          navigator.vibrate(18);
         }
-      }, 400);
-    }
-  };
-
-  // Final do Toque (Touch End)
-  const handleTouchEnd = () => {
-    const targetIdx = currentHoverRef.current;
-    const duration = Date.now() - touchStartPos.current.time;
-    const wasQuickTap = duration < 240 && !isSwipeRef.current;
-
-    // Navega se:
-    // 1. O usuário deu swipe para cima (20-40px)
-    // 2. O usuário manteve o dedo por mais de ~400ms (dwell confirmed)
-    // 3. O usuário deu um toque rápido comum (quick tap sem arrastar)
-    const shouldNavigate = isSwipeRef.current || isDwellConfirmed || wasQuickTap;
-
-    if (shouldNavigate && targetIdx !== null && NAV_ITEMS[targetIdx]) {
-      const targetItem = NAV_ITEMS[targetIdx];
-      if (typeof navigator !== 'undefined' && navigator.vibrate) {
-        navigator.vibrate([12, 40, 20]);
+      } else if (deltaY >= -14 && isUpwardSwipeRef.current) {
+        isUpwardSwipeRef.current = false;
+        setIsUpwardSwipe(false);
+        interactionModeRef.current = 'drag';
+        setInteractionMode('drag');
       }
-      router.push(targetItem.href);
+
+      scheduleMagnificationUpdate(touch.clientX);
+    }
+  };
+
+  // 10. Final do Toque (Touch End)
+  const handleTouchEnd = () => {
+    const currentMode = interactionModeRef.current;
+    const targetIdx = hoveredIndexRef.current ?? touchStartPos.current.index;
+    const targetItem = NAV_ITEMS[targetIdx];
+
+    // REGRA 1: DIRECT TAP SEMPRE VENCE
+    // Se o movimento foi pequeno (abaixo de 12px), é um TAP direto! Navega imediatamente.
+    if (currentMode === 'tap') {
+      if (targetItem) {
+        navigateTo(targetItem.href);
+        return;
+      }
     }
 
-    // Se soltou sem swipe e sem dwell (apenas deslizando de curiosidade),
-    // retorna suavemente para a escala normal sem trocar de tela!
-    resetMagnification();
+    // REGRA 2: MODO DRAG / CONFIRMING
+    // Navega se o usuário confirmou intencionalmente por swipe upward ou permanência (dwell)
+    if (currentMode === 'drag' || currentMode === 'confirming') {
+      if (isUpwardSwipeRef.current || isDwellConfirmedRef.current) {
+        if (targetItem) {
+          navigateTo(targetItem.href);
+          return;
+        }
+      }
+    }
+
+    // Soltou sem confirmação: restaura repouso suavemente
+    resetAllGestureStates();
   };
 
-  // Suporte complementar a mouse hover no desktop / iPad
-  const handleMouseMove = (e: React.MouseEvent) => {
-    if (isTouching) return;
-    const closest = calculateMagnification(e.clientX);
-    setHoveredIndex(closest);
+  // 11. Proteção Global de Window Touch End (impede que gestos fiquem presos se o dedo sair da barra)
+  useEffect(() => {
+    const handleWindowTouchEnd = () => {
+      if (interactionModeRef.current !== 'idle' && interactionModeRef.current !== 'navigating') {
+        resetAllGestureStates();
+      }
+    };
+
+    window.addEventListener('touchend', handleWindowTouchEnd, { passive: true });
+    window.addEventListener('touchcancel', handleWindowTouchEnd, { passive: true });
+    return () => {
+      window.removeEventListener('touchend', handleWindowTouchEnd);
+      window.removeEventListener('touchcancel', handleWindowTouchEnd);
+    };
+  }, [resetAllGestureStates]);
+
+  // 12. Clique Direto Nativo (Suporte a Mouse, Trackpad e Acessibilidade)
+  const handleItemClick = (idx: number) => {
+    // Se não estiver em modo de arrasto ativo, executa a navegação direta imediatamente
+    if (interactionModeRef.current !== 'drag' && interactionModeRef.current !== 'confirming') {
+      const item = NAV_ITEMS[idx];
+      if (item) {
+        navigateTo(item.href);
+      }
+    }
   };
+
+  // 13. Suporte a Mouse Hover no Desktop / iPad
+  const handleMouseMove = (e: React.MouseEvent) => {
+    if (interactionModeRef.current !== 'idle') return;
+    scheduleMagnificationUpdate(e.clientX);
+  };
+
+  const handleMouseLeave = () => {
+    if (interactionModeRef.current === 'idle') {
+      resetAllGestureStates();
+    }
+  };
+
+  const isInteracting = interactionMode !== 'idle' && interactionMode !== 'navigating';
 
   return (
     <nav
@@ -217,39 +397,43 @@ export function BottomNav() {
       onTouchStart={handleTouchStart}
       onTouchMove={handleTouchMove}
       onTouchEnd={handleTouchEnd}
-      onTouchCancel={resetMagnification}
+      onTouchCancel={resetAllGestureStates}
       onMouseMove={handleMouseMove}
-      onMouseLeave={resetMagnification}
+      onMouseLeave={handleMouseLeave}
       className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-[#0a0c10]/95 backdrop-blur-xl border-t border-white/[0.08] select-none touch-none pb-safe"
       style={{ WebkitUserSelect: 'none' }}
     >
-      {/* Container Dock com espaçamento estrito e Direção no centro */}
+      {/* Container Dock com Direção exatamente no centro */}
       <div className="max-w-md mx-auto px-2 pt-1 pb-1.5 flex items-center justify-between relative overflow-visible">
         {NAV_ITEMS.map((item, idx) => {
           const isActive = pathname === item.href;
           const Icon = item.icon;
           const scale = scales[idx] || 1;
           const lift = lifts[idx] || 0;
-          const isHovered = hoveredIndex === idx && isTouching;
+          const isHovered = hoveredIndex === idx && isInteracting;
           const isConfirmed = isHovered && (isDwellConfirmed || isUpwardSwipe);
 
           return (
-            <div
+            <button
               key={item.id}
               ref={(el) => {
                 itemRefs.current[idx] = el;
               }}
-              className="flex-1 flex flex-col items-center justify-end relative"
+              type="button"
+              onClick={() => handleItemClick(idx)}
+              className="flex-1 flex flex-col items-center justify-end relative cursor-pointer outline-none focus:outline-none focus-visible:ring-1 focus-visible:ring-white/20 bg-transparent border-0 p-0 m-0"
               style={{ minHeight: '52px' }}
+              aria-label={item.label}
+              aria-current={isActive ? 'page' : undefined}
             >
-              {/* Elemento Visual Magnificado (transform sem causar nenhum layout shift) */}
+              {/* Elemento Visual Magnificado (transform GPU-friendly sem causar nenhum layout shift) */}
               <div
                 className="flex flex-col items-center justify-end pointer-events-none origin-bottom"
                 style={{
                   transform: `scale(${scale}) translateY(-${lift}px)`,
-                  transition: isTouching
+                  transition: isInteracting
                     ? 'none'
-                    : 'transform 0.35s cubic-bezier(0.34, 1.56, 0.64, 1)',
+                    : 'transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1)',
                   willChange: 'transform',
                 }}
               >
@@ -300,7 +484,7 @@ export function BottomNav() {
                   {item.label}
                 </span>
               </div>
-            </div>
+            </button>
           );
         })}
       </div>
