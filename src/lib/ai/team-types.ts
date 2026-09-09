@@ -125,7 +125,18 @@ export interface VisualDirectionData {
 export interface ScriptScene {
   sceneNumber: number;
   sceneName: string; // Ex: "CENA 01 — O GANCHO"
-  stage: 'hook' | 'central_question' | 'origin' | 'conflict' | 're_hook' | 'discovery' | 'test' | 'climax' | 'cta';
+  stage:
+    | 'hook'
+    | 'central_question'
+    | 'origin'
+    | 'conflict'
+    | 'development'
+    | 're_hook'
+    | 'discovery'
+    | 'test'
+    | 'consequence'
+    | 'climax'
+    | 'cta';
   objective: string;
   narrativePurpose: string;
   dialogue: string; // Diálogo humano em pt-BR com pausas e entonação natural

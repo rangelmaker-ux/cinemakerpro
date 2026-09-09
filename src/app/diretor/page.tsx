@@ -44,6 +44,7 @@ import {
   AIProductionStage,
   ChatMessage,
   CreativeBrief,
+  NarrativeFeedbackType,
 } from '@/lib/ai/conversational-engine';
 import { GeneralDirectorOutput, ScriptCreatorOutput, SharedProjectContext } from '@/lib/ai/team-types';
 import { CustomLightingSetup } from '@/lib/ai/lighting-3d-types';
@@ -376,9 +377,9 @@ function DirectorContent() {
         return;
       }
 
-      // CASO 3: USUÁRIO PEDIU AJUSTE CIRÚRGICO ESPECÍFICO (GANCHO, CTA, TOM)
+      // CASO 3: USUÁRIO PEDIU AJUSTE CIRÚRGICO ESPECÍFICO (GANCHO, CTA, TOM OU FEEDBACK ESTRUTURAL)
       if (analysis.isTargetedAdjustment && currentScript && analysis.adjustmentType) {
-        handleTargetedAdjustment(analysis.adjustmentType, text);
+        handleTargetedAdjustment(analysis.adjustmentType, text, analysis.feedbackType);
         setIsThinking(false);
         return;
       }
@@ -531,7 +532,8 @@ function DirectorContent() {
   // AJUSTE CIRÚRGICO (PRESERVA VERSÃO ANTERIOR NO HISTÓRICO)
   const handleTargetedAdjustment = (
     type: 'hook' | 'cta' | 'duration' | 'tone' | 'dialogue',
-    directive: string
+    directive: string,
+    feedbackType?: NarrativeFeedbackType
   ) => {
     if (!currentScript) return;
     setIsThinking(true);
@@ -541,15 +543,24 @@ function DirectorContent() {
     }
 
     setTimeout(() => {
-      const updated = applyTargetedAdjustment(currentScript, type, directive);
+      const updated = applyTargetedAdjustment(currentScript, type, directive, feedbackType);
       setCurrentScript(updated);
       setIsScriptApproved(false);
+
+      let responseText = `Ajustei o ${type === 'hook' ? 'gancho' : type === 'cta' ? 'CTA' : 'roteiro'} conforme solicitado: "${directive}". As outras partes foram preservadas com sucesso.`;
+      if (feedbackType === 'too_motivational') {
+        responseText = `Recalibrei o roteiro eliminando expressões motivacionais e slogans genéricos. Todas as falas agora seguem uma progressão estritamente técnica, operacional e causal.`;
+      } else if (feedbackType === 'repetitive') {
+        responseText = `Removi redundâncias e acelerei a transição entre as cenas. Cada cena agora introduz um novo dado ou contraste na narrativa.`;
+      } else if (feedbackType === 'more_storytelling') {
+        responseText = `Fortaleci a estrutura de storytelling: a pergunta inicial ganha maior tensão, a virada técnica revela o detalhe esquecido e o payoff resolve diretamente o problema.`;
+      }
 
       const adjMsg: ChatMessage = {
         id: `msg-${Date.now()}`,
         sender: 'criador_roteiro',
         senderTitle: 'Criador de Roteiro',
-        text: `Ajustei o ${type === 'hook' ? 'gancho' : type === 'cta' ? 'CTA' : 'roteiro'} conforme solicitado: "${directive}". As outras partes foram preservadas com sucesso.`,
+        text: responseText,
         timestamp: new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
         stage: 'script_review',
         script: updated,

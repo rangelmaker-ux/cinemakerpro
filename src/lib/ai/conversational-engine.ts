@@ -12,13 +12,13 @@ import { runCinematographer } from './agents/cinematographer';
 import { runGeneralDirector } from './agents/general-director';
 
 /**
- * ESTADOS DA MÁQUINA DE ESTADOS CONVERSACIONAL (Seção 4 & 10 do Master Prompt)
+ * ESTADOS DA MÁQUINA DE ESTADOS CONVERSACIONAL
  */
 export type AIProductionStage =
   | 'idle' // Estado inicial: nada pré-carregado. "Me conta o que você precisa gravar."
   | 'user_input' // Usuário digitando ou falando por áudio
   | 'understanding' // IA processando o áudio / texto
-  | 'clarification' // IA faz 1 pergunta focada caso falte informação crítica
+  | 'clarification' // IA apresenta opções estratégicas caso falte direcionamento
   | 'creative_brief' // Briefing estruturado gerado da conversa
   | 'script_generation' // Criador de Roteiro gerando narrativa específica
   | 'script_review' // Roteiro aguardando aprovação, regeneração ou edição do usuário
@@ -31,7 +31,7 @@ export type AIProductionStage =
   | 'production_ready'; // Set 100% pronto para gravação
 
 /**
- * BRIEFING CRIATIVO EXTRAÍDO DINAMICAMENTE DA CONVERSA (Seção 13)
+ * BRIEFING CRIATIVO EXTRAÍDO DINAMICAMENTE DA CONVERSA
  */
 export interface CreativeBrief {
   client: string;
@@ -45,7 +45,6 @@ export interface CreativeBrief {
   tone: string;
   style: string;
   specific_requests?: string[];
-  // Campos de inteligência criativa e raciocínio estratégico
   target_audience?: string;
   creative_angle?: string;
   creative_strategy?: string;
@@ -86,7 +85,7 @@ export interface ProjectConversationState {
 }
 
 /**
- * CRIA O ESTADO INICIAL 100% LIMPO (SEÇÃO 1 & 45: ZERO SCRIPTS PRÉ-CARREGADOS)
+ * CRIA O ESTADO INICIAL 100% LIMPO (ZERO SCRIPTS PRÉ-CARREGADOS)
  */
 export function createInitialConversationState(clientName?: string): ProjectConversationState {
   return {
@@ -120,8 +119,10 @@ export function createInitialConversationState(clientName?: string): ProjectConv
 
 /**
  * PLAYBOOKS ESTRATÉGICOS POR NICHO (Metodologia CineMaker Pro)
- * Transforma: INTENÇÃO DO USUÁRIO -> RACIOCÍNIO -> ESTRATÉGIA CRIATIVA -> ROTEIRO REAL
- * REGRA ABSOLUTA: NÃO COPIAR O USUÁRIO, NÃO PARAFRASEAR, NÃO USAR AS PALAVRAS DO USUÁRIO COMO DIÁLOGO.
+ * Transforma: INTENÇÃO DO USUÁRIO -> RACIOCÍNIO -> ESTRATÉGIA CRIATIVA -> ROTEIRO REAL FALADO
+ * REGRA ABSOLUTA DE CONTINUIDADE NARRATIVA:
+ * CADA CENA É UM ELO DE UMA HISTÓRIA CONTÍNUA (CAUSA E EFEITO: A ACONTECE -> LOGO B -> QUE GERA C -> QUE LEVA A D).
+ * NADA DE FRASES MOTIVACIONAIS ISOLADAS. NADA DE CLICHÊS GENÉRICOS.
  */
 export interface StrategicAngle {
   key: string;
@@ -144,6 +145,18 @@ export interface NichePlaybook {
   angles: StrategicAngle[];
 }
 
+/**
+ * Distribuidor temporal cinematográfico para 5 cenas com ritmo balanceado
+ */
+function distribute5Scenes(durationSec: number) {
+  const s1 = Math.max(4, Math.round(durationSec * 0.18));
+  const s2 = Math.max(5, Math.round(durationSec * 0.20));
+  const s3 = Math.max(6, Math.round(durationSec * 0.24));
+  const s4 = Math.max(5, Math.round(durationSec * 0.20));
+  const s5 = Math.max(4, durationSec - (s1 + s2 + s3 + s4));
+  return { s1, s2, s3, s4, s5 };
+}
+
 export const STRATEGIC_PLAYBOOKS: Record<string, NichePlaybook> = {
   barbearia: {
     nicheKey: 'barbearia',
@@ -154,57 +167,83 @@ export const STRATEGIC_PLAYBOOKS: Record<string, NichePlaybook> = {
     angles: [
       {
         key: 'durabilidade',
-        name: 'O Erro da Durabilidade',
-        shortLabel: '1. O Erro da Durabilidade',
-        description: 'Explicar por que o corte perde o formato rápido quando a finalização diária em casa está errada.',
-        hook: '"Se você faz esse corte e ele perde o formato em menos de uma semana, o problema quase nunca é o corte: é esse detalhe que quase ninguém te explica."',
+        name: 'O Segredo da Durabilidade',
+        shortLabel: '1. O Segredo da Durabilidade',
+        description: 'Explicar por que o corte perde o formato em poucos dias e como a finalização correta resolve isso.',
+        hook: '"Seu corte fica perfeito quando você sai da barbearia e três dias depois já parece outro?"',
         central_question: 'Por que o caimento natural e a finalização diária determinam a durabilidade do corte?',
-        cta: '"No seu próximo corte, avisa que quer aprender a finalizar sozinho. Clica no link da bio e garante o seu horário nesta semana."',
-        creative_justification: 'Em vez de uma propaganda genérica sobre corte de cabelo, atacamos a frustração real do cliente: o cabelo perder a forma logo após sair da barbearia. Isso posiciona o profissional como consultor técnico, gerando alta taxa de salvamento e agendamentos qualificados.',
+        cta: '"Na próxima vez que for cortar, não pede só o nome do corte. Pergunta como ele funciona no seu cabelo. Clica no link da bio e agenda seu horário."',
+        creative_justification: 'Em vez de uma propaganda genérica sobre corte de cabelo, atacamos a frustração real do cliente: o cabelo perder a forma logo após sair da barbearia. A narrativa segue causa e efeito estrita (Seção 29 do Master Prompt).',
         scenes: (durationSec, speaker) => {
-          const s1 = Math.max(5, Math.round(durationSec * 0.2));
-          const s2 = Math.max(14, Math.round(durationSec * 0.55));
-          const s3 = Math.max(6, Math.round(durationSec * 0.25));
+          const { s1, s2, s3, s4, s5 } = distribute5Scenes(durationSec);
           return [
             {
               sceneNumber: 1,
-              sceneName: 'CENA 01 — O ALERTA DA DURABILIDADE',
+              sceneName: 'CENA 01 — O PROBLEMA DA DURABILIDADE',
               stage: 'hook',
-              objective: 'Parar o scroll nos primeiros 3 segundos atacando uma frustração diária',
-              narrativePurpose: 'Conexão instantânea por identificação de dor cotidiana',
-              dialogue: 'Se você sai da barbearia com o cabelo impecável, mas em cinco dias ele já perdeu totalmente o desenho, o problema quase nunca foi a tesoura: foi o jeito que você seca em casa.',
+              objective: 'Parar o scroll abrindo uma pergunta imediata sobre uma frustração comum',
+              narrativePurpose: 'Abertura do arco narrativo através de identificação imediata',
+              dialogue: 'Seu corte fica perfeito quando você sai da barbearia e três dias depois já parece outro?',
               action: `${speaker} a 1,5m da parede de fundo, limpando a lâmina com toalha de microfibra, olhar seguro e calmo diretamente para a lente.`,
               visualIdea: 'Plano Médio vertical 9:16. Iluminação a 45° suave modelando os traços do rosto e o reflexo metálico das ferramentas.',
-              emotionalIntention: 'Alívio e curiosidade técnica.',
+              emotionalIntention: 'Curiosidade e alívio por ter a dúvida reconhecida.',
               durationSec: s1,
+              shotType: 'Plano Médio (35mm)',
+              transition: 'Corte no olhar',
+            },
+            {
+              sceneNumber: 2,
+              sceneName: 'CENA 02 — O CONTEXTO DOS PRIMEIROS DIAS',
+              stage: 'development',
+              objective: 'Desenvolver a pergunta sem concluir precipitadamente',
+              narrativePurpose: 'Conexão causal: do sintoma para o que ocorre no dia a dia',
+              dialogue: 'Antes de culpar o corte ou a tesoura, olha o que acontece nesses primeiros dias em casa.',
+              action: `${speaker} dá meio passo à frente, apontando para o espelho da bancada onde os produtos e secador estão organizados.`,
+              visualIdea: 'Plano Médio com leve aproximação, mantendo profundidade de 1,5m em relação ao fundo.',
+              emotionalIntention: 'Atenção redobrada e cumplicidade.',
+              durationSec: s2,
+              shotType: 'Plano Médio (35mm)',
+              transition: 'Corte na gesticulação',
+            },
+            {
+              sceneNumber: 3,
+              sceneName: 'CENA 03 — O FATOR ESQUECIDO',
+              stage: 'discovery',
+              objective: 'Revelar o detalhe prático que muda a sustentação do fio',
+              narrativePurpose: 'Ponto de virada da narrativa: o fator técnico que ninguém explicava',
+              dialogue: 'Dependendo do seu tipo de cabelo, a forma como você finaliza muda completamente o resultado.',
+              action: `${speaker} pega um pente de madeira de dentes largos e demonstra a direção correta do fluxo do ar morno no topo.`,
+              visualIdea: 'Close Médio destacando as mãos do especialista demonstrando o controle minucioso.',
+              emotionalIntention: 'Descoberta técnica e clareza didática.',
+              durationSec: s3,
+              shotType: 'Close Médio (50mm)',
+              transition: 'Corte no movimento do pente',
+            },
+            {
+              sceneNumber: 4,
+              sceneName: 'CENA 04 — A CONSEQUÊNCIA PRÁTICA',
+              stage: 'consequence',
+              objective: 'Explicar o impacto real do fator descoberto na rotina de pessoas diferentes',
+              narrativePurpose: 'Demonstração de causa e efeito: por que o mesmo corte reage diferente',
+              dialogue: 'Por isso, esse mesmo corte pode funcionar muito bem para uma pessoa e perder o formato rápido em outra.',
+              action: `${speaker} coloca o pente na bancada com calma, olhando diretamente nos olhos do espectador com serenidade.`,
+              visualIdea: 'Plano Médio com contraluz suave desenhando os ombros e a textura da cadeira ao fundo.',
+              emotionalIntention: 'Compreensão completa do problema.',
+              durationSec: s4,
               shotType: 'Plano Médio (35mm)',
               transition: 'Corte seco no olhar',
             },
             {
-              sceneNumber: 2,
-              sceneName: 'CENA 02 — A REVELAÇÃO DO CAIMENTO',
-              stage: 'discovery',
-              objective: 'Entregar o valor prático sem jargões desnecessários',
-              narrativePurpose: 'Demonstração de autoridade sem parecer arrogante',
-              dialogue: 'O caimento perfeito não pede meio pote de pomada. Pede respeitar o sentido natural do redemoinho e alinhar o ar morno da raiz pras pontas antes de encostar qualquer produto no fio.',
-              action: `${speaker} aponta para o topo da cabeça no espelho com um pente de dentes largos, demonstrando o fluxo correto do ar.`,
-              visualIdea: 'Close Médio focado na destreza das mãos e no controle minucioso do movimento artesanal.',
-              emotionalIntention: 'Clareza didática e credibilidade técnica.',
-              durationSec: s2,
-              shotType: 'Close Médio (50mm)',
-              transition: 'Corte no movimento da mão',
-            },
-            {
-              sceneNumber: 3,
-              sceneName: 'CENA 03 — A CONVOCAÇÃO PARA A CADEIRA',
+              sceneNumber: 5,
+              sceneName: 'CENA 05 — A RECOMENDAÇÃO DE FECHAMENTO',
               stage: 'cta',
-              objective: 'Direcionar para o agendamento de forma natural e consultiva',
-              narrativePurpose: 'Convite direto com benefício explícito',
-              dialogue: 'No seu próximo corte, avisa que você quer aprender a finalizar sozinho. Clica no link da bio e garante o seu horário nesta semana.',
-              action: `${speaker} coloca o pente na bancada de madeira, sorri de forma receptiva e aponta com discrição para a bio.`,
-              visualIdea: 'Plano Médio aberto com contraluz suave desenhando os ombros e a cadeira acolhedora ao fundo.',
-              emotionalIntention: 'Decisão segura e agendamento sem fricção.',
-              durationSec: s3,
+              objective: 'Fechar o ciclo narrativo aberto na Cena 1 com uma recomendação consultiva concreta',
+              narrativePurpose: 'Conclusão da história e CTA derivado diretamente do aprendizado',
+              dialogue: 'Na próxima vez que for cortar, não pede só o nome do corte. Pergunta como ele funciona no seu cabelo. Clica no link da bio e agenda com quem analisa antes de cortar.',
+              action: `${speaker} sorri com receptividade, estendendo a mão em um convite cordial para a cadeira de atendimento.`,
+              visualIdea: 'Plano Médio cinematográfico com iluminação acolhedora e atmosfera convidativa.',
+              emotionalIntention: 'Decisão segura e vontade imediata de agendar.',
+              durationSec: s5,
               shotType: 'Plano Médio (35mm)',
               transition: 'Fade out elegante',
             },
@@ -216,56 +255,82 @@ export const STRATEGIC_PLAYBOOKS: Record<string, NichePlaybook> = {
         name: 'Visagismo e Proporção Facial',
         shortLabel: '2. Visagismo e Proporção',
         description: 'Como escolher o corte que valoriza a estrutura óssea do rosto masculino em vez de copiar fotos da internet.',
-        hook: '"Pedir corte de foto da internet é o jeito mais fácil de sair insatisfeito da barbearia. O seu formato de rosto dita o corte, e não o contrário."',
+        hook: '"Pedir o corte daquela foto do Pinterest é o caminho mais rápido para sair frustrado da barbearia."',
         central_question: 'Como o visagismo masculino harmoniza os traços do rosto e eleva a presença pessoal?',
-        cta: '"Quer descobrir qual proporção valoriza seus traços reais? Clica no link da bio e vem sentar na cadeira de quem analisa antes de cortar."',
-        creative_justification: 'Desarmamos a expectativa perigosa de levar fotos irreais de celebridades. O visagismo prático eleva o serviço de um simples corte para uma consultoria de imagem masculina de alto valor.',
+        cta: '"No seu próximo corte, senta na cadeira e pergunta qual proporção equilibra seu rosto. Clica no link da bio e vem agendar com a gente."',
+        creative_justification: 'Desarmamos a expectativa perigosa de levar fotos irreais de celebridades. O visagismo prático eleva o serviço para uma consultoria de imagem masculina estruturada em 5 atos narrativos.',
         scenes: (durationSec, speaker) => {
-          const s1 = Math.max(5, Math.round(durationSec * 0.2));
-          const s2 = Math.max(14, Math.round(durationSec * 0.55));
-          const s3 = Math.max(6, Math.round(durationSec * 0.25));
+          const { s1, s2, s3, s4, s5 } = distribute5Scenes(durationSec);
           return [
             {
               sceneNumber: 1,
               sceneName: 'CENA 01 — A ILUSÃO DA FOTO DA INTERNET',
               stage: 'hook',
-              objective: 'Quebrar o padrão de levar foto do Pinterest sem critério',
-              narrativePurpose: 'Choque de lucidez amigável',
-              dialogue: 'Pedir o corte daquela foto do Pinterest é o caminho mais rápido para a decepção. O que funciona no jogador famoso quase nunca respeita o desenho da sua mandíbula.',
-              action: `${speaker} a 1,5m do fundo, segurando a tesoura fechada, olhando com franqueza e empatia para a câmera.`,
+              objective: 'Interromper o hábito comum de escolher cortes por fotos sem critério',
+              narrativePurpose: 'Abertura do conflito: a distância entre a foto e a realidade',
+              dialogue: 'Pedir o corte daquela foto do Pinterest é o caminho mais rápido para sair frustrado da barbearia.',
+              action: `${speaker} a 1,5m da parede de fundo, segurando a tesoura fechada, olhando com franqueza e empatia para a câmera.`,
               visualIdea: 'Plano Médio vertical com iluminação contrastada e fundo escuro descolado em profundidade.',
-              emotionalIntention: 'Quebra de ilusão e atenção focada.',
+              emotionalIntention: 'Choque de lucidez e curiosidade.',
               durationSec: s1,
               shotType: 'Plano Médio (35mm)',
               transition: 'Corte no olhar',
             },
             {
               sceneNumber: 2,
-              sceneName: 'CENA 02 — O MAPA DAS PROPORÇÕES',
-              stage: 'discovery',
-              objective: 'Explicar a mecânica visual das linhas do rosto',
-              narrativePurpose: 'Demonstração de visagismo profissional',
-              dialogue: 'Rosto mais redondo pede lateral limpa e topo com volume pra alongar. Já rosto triangular precisa de peso nas têmporas pra equilibrar a proporção. Isso é visagismo, não sorte.',
-              action: `${speaker} delimita no ar com as mãos as linhas verticais e horizontais do rosto humano.`,
-              visualIdea: 'Close Médio com foco nítido na expressão facial didática do especialista.',
-              emotionalIntention: 'Fascinio e admiração pelo conhecimento.',
+              sceneName: 'CENA 02 — O PORQUÊ DA DECEPÇÃO',
+              stage: 'development',
+              objective: 'Explicar a causa anatômica da frustração sem culpar o cliente',
+              narrativePurpose: 'Desenvolvimento causal: a geometria óssea que a foto esconde',
+              dialogue: 'Porque o corte que fica incrível na mandíbula quadrada do modelo da foto, raramente encaixa na mesma proporção no seu rosto.',
+              action: `${speaker} aponta suavemente para as linhas laterais do próprio rosto, exemplificando a variedade de formatos.`,
+              visualIdea: 'Close Médio focado na expressão didática e sincera do especialista.',
+              emotionalIntention: 'Identificação e quebra do sentimento de culpa.',
               durationSec: s2,
               shotType: 'Close Médio (50mm)',
-              transition: 'Corte rápido no gesto',
+              transition: 'Corte no gesto',
             },
             {
               sceneNumber: 3,
-              sceneName: 'CENA 03 — O CONVITE DE VALOR',
-              stage: 'cta',
-              objective: 'Transformar curiosidade em agendamento imediato',
-              narrativePurpose: 'Posicionamento premium',
-              dialogue: 'Quer descobrir qual proporção valoriza seus traços reais? Clica no link da bio e senta na cadeira de quem analisa antes de cortar.',
-              action: `${speaker} ajeita a capa na cadeira de atendimento vazia e faz gesto convidativo para o espectador entrar na cena.`,
-              visualIdea: 'Plano Médio cinematográfico com iluminação quente na cadeira de corte.',
-              emotionalIntention: 'Vontade imediata de viver a experiência.',
+              sceneName: 'CENA 03 — A REGRA DA PROPORÇÃO REAL',
+              stage: 'discovery',
+              objective: 'Apresentar a lógica visual prática do visagismo',
+              narrativePurpose: 'Revelação do critério técnico que resolve o dilema',
+              dialogue: 'O segredo não é copiar a moda: é visagismo prático. Lateral limpa alonga rostos mais redondos, enquanto peso nas têmporas equilibra rostos compridos.',
+              action: `${speaker} delimita no ar com as mãos as linhas verticais e horizontais que criam o equilíbrio visual.`,
+              visualIdea: 'Plano Médio dinâmico com iluminação desenhando o formato do rosto do especialista.',
+              emotionalIntention: 'Fascínio didático e valorização técnica.',
               durationSec: s3,
               shotType: 'Plano Médio (35mm)',
-              transition: 'Fade out',
+              transition: 'Corte no movimento das mãos',
+            },
+            {
+              sceneNumber: 4,
+              sceneName: 'CENA 04 — O RESULTADO NATURAL',
+              stage: 'consequence',
+              objective: 'Mostrar o efeito de aplicar o visagismo na presença diária',
+              narrativePurpose: 'Consequência: o corte se torna uma extensão harmoniosa da pessoa',
+              dialogue: 'Quando você entende a proporção dos seus traços, o corte deixa de parecer um bloco genérico e valoriza sua presença de forma natural.',
+              action: `${speaker} cruza os braços com postura segura e serena, demonstrando firmeza e equilíbrio.`,
+              visualIdea: 'Plano Americano com iluminação elegante a 45° destacando postura e elegância.',
+              emotionalIntention: 'Sensação de elegância e autoridade.',
+              durationSec: s4,
+              shotType: 'Plano Americano (50mm)',
+              transition: 'Corte seco',
+            },
+            {
+              sceneNumber: 5,
+              sceneName: 'CENA 05 — O CONVITE DE CONSULTORIA',
+              stage: 'cta',
+              objective: 'Fechar o ciclo respondendo à questão com o agendamento analítico',
+              narrativePurpose: 'Fechamento narrativo que conecta a dor inicial à solução real',
+              dialogue: 'No seu próximo corte, senta na cadeira e pergunta qual proporção equilibra seu rosto. Clica no link da bio e vem agendar com quem analisa antes de cortar.',
+              action: `${speaker} ajusta a capa na cadeira de atendimento vazia e faz gesto convidativo para o espectador.`,
+              visualIdea: 'Plano Médio cinematográfico com contraluz quente na cadeira da barbearia.',
+              emotionalIntention: 'Decisão tomada com confiança.',
+              durationSec: s5,
+              shotType: 'Plano Médio (35mm)',
+              transition: 'Fade out elegante',
             },
           ];
         },
@@ -275,54 +340,80 @@ export const STRATEGIC_PLAYBOOKS: Record<string, NichePlaybook> = {
         name: 'A Quebra do Automático',
         shortLabel: '3. A Quebra do Automático',
         description: 'Por que a maioria dos homens sempre pede o mesmo corte por puro medo de o barbeiro errar.',
-        hook: '"Você ainda senta na cadeira da barbearia e fala \'faz igual da última vez\' só por puro medo de o barbeiro inventar moda e estragar seu cabelo?"',
+        hook: '"Você ainda senta na cadeira da barbearia e diz \'faz igual da última vez\' só por puro medo de o barbeiro errar?"',
         central_question: 'Por que nos acomodamos no corte padrão e como renovar o visual sem sustos?',
-        cta: '"Deixa quem entende do assunto desenhar o seu estilo. Clica no link da bio e agenda o seu horário com a gente."',
-        creative_justification: 'Tocamos na vulnerabilidade silenciosa da maioria dos homens: o medo de arriscar um corte novo e se arrepender. Oferecemos uma ponte de confiança com ajustes progressivos e seguros.',
+        cta: '"Chega de cortar cabelo no piloto automático. Clica no link da bio e vem renovar seu estilo com segurança."',
+        creative_justification: 'Tocamos na vulnerabilidade silenciosa dos homens: o medo de mudar e ter que usar boné por semanas. A progressão narrativa substitui o medo por confiança técnica através de microajustes.',
         scenes: (durationSec, speaker) => {
-          const s1 = Math.max(5, Math.round(durationSec * 0.2));
-          const s2 = Math.max(14, Math.round(durationSec * 0.55));
-          const s3 = Math.max(6, Math.round(durationSec * 0.25));
+          const { s1, s2, s3, s4, s5 } = distribute5Scenes(durationSec);
           return [
             {
               sceneNumber: 1,
-              sceneName: 'CENA 01 — O CONFORTO DO MEDO',
+              sceneName: 'CENA 01 — O HÁBITO DO RECEIO',
               stage: 'hook',
-              objective: 'Revelar o hábito silencioso de pedir sempre a mesma coisa',
-              narrativePurpose: 'Conexão por humor e cumplicidade',
-              dialogue: 'Você ainda senta na cadeira e fala "faz igual da última vez" por puro receio de arriscar e ter que passar três semanas usando boné?',
+              objective: 'Trazer à tona o comportamento defensivo do cliente na cadeira',
+              narrativePurpose: 'Pergunta provocativa que expõe um padrão repetido no automático',
+              dialogue: 'Você ainda senta na cadeira da barbearia e diz "faz igual da última vez" só por puro medo de o barbeiro errar?',
               action: `${speaker} cruza os braços com sorriso cúmplice a 1,5m da parede, falando como um velho amigo.`,
-              visualIdea: 'Plano Médio vertical com iluminação envolvente a 45° criando sombras suaves e naturais.',
-              emotionalIntention: 'Riso espontâneo e identificação total.',
+              visualIdea: 'Plano Médio vertical com iluminação envolvente a 45° criando sombras naturais.',
+              emotionalIntention: 'Identificação imediata e riso cúmplice.',
               durationSec: s1,
               shotType: 'Plano Médio (35mm)',
               transition: 'Corte no sorriso',
             },
             {
               sceneNumber: 2,
-              sceneName: 'CENA 02 — O AJUSTE MILIMÉTRICO',
-              stage: 'discovery',
-              objective: 'Mostrar que mudar não significa radicalizar',
-              narrativePurpose: 'Desmistificar a mudança de corte',
-              dialogue: 'A verdade é que você não precisa de uma mudança radical. Um ajuste de 1 centímetro na altura do fade e uma textura na tesoura já mudam completamente sua presença e elegância.',
-              action: `${speaker} segura a máquina de acabamento e demonstra no ar a sutil diferença de graduação com extrema leveza.`,
-              visualIdea: 'Close nos detalhes metálicos da máquina e na firmeza das mãos do barbeiro.',
-              emotionalIntention: 'Segurança absoluta e encorajamento.',
+              sceneName: 'CENA 02 — O DILEMA DO BONÉ',
+              stage: 'development',
+              objective: 'Nomear o medo real por trás do hábito sem julgar',
+              narrativePurpose: 'Desenvolvimento emocional da dor oculta',
+              dialogue: 'A maioria dos homens repete o mesmo corte há anos não porque ama o estilo, mas porque tem pavor de arriscar e ter que passar um mês usando boné.',
+              action: `${speaker} descruza os braços e faz gesto de quem compreende perfeitamente essa apreensão.`,
+              visualIdea: 'Close Médio focado na honestidade expressiva do barbeiro.',
+              emotionalIntention: 'Alívio por saber que não é o único a sentir isso.',
               durationSec: s2,
+              shotType: 'Close Médio (50mm)',
+              transition: 'Corte no gesto',
+            },
+            {
+              sceneNumber: 3,
+              sceneName: 'CENA 03 — A EVOLUÇÃO SEGURA',
+              stage: 'discovery',
+              objective: 'Desmistificar a mudança mostrando que ela é progressiva e controlada',
+              narrativePurpose: 'Virada narrativa: evoluir o corte não exige radicalismo',
+              dialogue: 'Só que você não precisa de uma transformação radical. Um ajuste milimétrico na altura do fade e uma textura diferente na tesoura já modernizam sua imagem sem mudar quem você é.',
+              action: `${speaker} segura a máquina de acabamento e demonstra no ar a sutil diferença de graduação com extrema leveza.`,
+              visualIdea: 'Close nos detalhes metálicos da ferramenta e na firmeza das mãos artesanais.',
+              emotionalIntention: 'Segurança absoluta e encorajamento.',
+              durationSec: s3,
               shotType: 'Close Médio (50mm)',
               transition: 'Corte na lâmina',
             },
             {
-              sceneNumber: 3,
-              sceneName: 'CENA 03 — O CHAMADO À EVOLUÇÃO',
+              sceneNumber: 4,
+              sceneName: 'CENA 04 — A CONFIANÇA RENOVADA',
+              stage: 'consequence',
+              objective: 'Pintar o cenário positivo de quem dá o passo seguro',
+              narrativePurpose: 'Consequência prática do ajuste milimétrico na autoestima',
+              dialogue: 'Você mantém a segurança do que já gosta, mas ganha um corte muito mais alinhado ao seu momento atual e à sua presença.',
+              action: `${speaker} apoia a máquina na bancada e gesticula de peito aberto em direção à câmera.`,
+              visualIdea: 'Plano Americano com profundidade cinematográfica em camadas.',
+              emotionalIntention: 'Entusiasmo contido e autoimagem elevada.',
+              durationSec: s4,
+              shotType: 'Plano Americano (35mm)',
+              transition: 'Corte seco no olhar',
+            },
+            {
+              sceneNumber: 5,
+              sceneName: 'CENA 05 — A QUEBRA DA ROTINA',
               stage: 'cta',
-              objective: 'Motivar a quebra da rotina agora mesmo',
-              narrativePurpose: 'Fechamento inspirador',
-              dialogue: 'Chega de corte no piloto automático. Clica no link da bio e agenda seu horário com quem pensa no seu estilo junto com você.',
-              action: `${speaker} olha firme na lente com olhar acolhedor e seguro, estendendo a mão para a frente.`,
-              visualIdea: 'Plano Médio com contraluz dourado conferindo ar de sofisticação ao ambiente.',
+              objective: 'Conduzir à quebra do piloto automático com um agendamento simples',
+              narrativePurpose: 'Fechamento que responde à pergunta da Cena 1',
+              dialogue: 'Chega de cortar cabelo no piloto automático. Clica no link da bio e vem alinhar seu estilo com quem pensa no seu corte junto com você.',
+              action: `${speaker} olha firme na lente com expressão receptiva e segura, estendendo a mão para a frente.`,
+              visualIdea: 'Plano Médio com contraluz dourado conferindo sofisticação ao espaço.',
               emotionalIntention: 'Decisão tomada e entusiasmo.',
-              durationSec: s3,
+              durationSec: s5,
               shotType: 'Plano Médio (35mm)',
               transition: 'Fade out',
             },
@@ -336,169 +427,262 @@ export const STRATEGIC_PLAYBOOKS: Record<string, NichePlaybook> = {
     nicheName: 'Odontologia & Sorriso',
     defaultClient: 'Clínica Odontológica',
     defaultSpeaker: 'o dentista',
-    targetAudience: 'Pacientes que desejam um sorriso harmônico sem parecer artificial',
+    targetAudience: 'Pacientes que desejam um sorriso harmônico e saudável sem artificialismo',
     angles: [
       {
         key: 'clareamento',
-        name: 'O Mito do Clareamento Rápido',
+        name: 'O Mito do Clareamento Caseiro',
         shortLabel: '1. O Mito do Clareamento Caseiro',
-        description: 'Desmistificar receitas caseiras de internet que destroem o esmalte dentário.',
-        hook: '"Se você acha que dente branco é sinônimo de dente saudável, precisa saber o que os métodos caseiros de internet fazem com o seu esmalte."',
-        central_question: 'Por que clareamentos milagrosos sem supervisão causam sensibilidade irreversível?',
-        cta: '"Quer clarear com segurança e durabilidade? Clica no link da bio e avalie seu esmalte com quem entende."',
-        creative_justification: 'Alerta de saúde pública que desarma soluções caseiras perigosas e atrai pacientes conscientes para o consultório.',
-        scenes: (durationSec, speaker) => [
-          {
-            sceneNumber: 1,
-            sceneName: 'CENA 01 — O ALERTA DO ESMALTE',
-            stage: 'hook',
-            objective: 'Interromper o hábito de seguir receitas milagrosas',
-            narrativePurpose: 'Autoridade clínica e proteção do paciente',
-            dialogue: 'Se você acha que dente branco é sinônimo de dente saudável, precisa saber o que as receitas de carvão e bicarbonato da internet fazem com o seu esmalte.',
-            action: `${speaker} posicionado a 1,5m da parede de fundo do consultório, jaleco impecável, olhar atento e firme para a lente.`,
-            visualIdea: 'Plano Médio vertical, luz suave envolvente com tons frios e limpos de consultório premium.',
-            emotionalIntention: 'Alerta e respeito técnico.',
-            durationSec: Math.max(5, Math.round(durationSec * 0.2)),
-            shotType: 'Plano Médio (35mm)',
-            transition: 'Corte seco',
-          },
-          {
-            sceneNumber: 2,
-            sceneName: 'CENA 02 — A CIÊNCIA DO CLAREAMENTO',
-            stage: 'discovery',
-            objective: 'Explicar a permeabilidade do dente de forma simples',
-            narrativePurpose: 'Educação preventiva de alto valor',
-            dialogue: 'O esmalte não regenera. Quando você esfrega substâncias abrasivas, você desgasta a proteção e expõe a dentina. Clareamento de verdade age por oxigênio dentro do dente, sem lixar nada.',
-            action: `${speaker} aponta para um modelo anatômico de dente na bancada, indicando as camadas com uma sonda clínica.`,
-            visualIdea: 'Close Médio no modelo e na explicação visual serena do dentista.',
-            emotionalIntention: 'Esclarecimento e alívio da dúvida.',
-            durationSec: Math.max(14, Math.round(durationSec * 0.55)),
-            shotType: 'Close Médio (50mm)',
-            transition: 'Corte no instrumento',
-          },
-          {
-            sceneNumber: 3,
-            sceneName: 'CENA 03 — O CONVITE SEGURO',
-            stage: 'cta',
-            objective: 'Conduzir para a consulta diagnóstica',
-            narrativePurpose: 'Fechamento com acolhimento profissional',
-            dialogue: 'Não arrisque a saúde do seu sorriso com experimentos. Clica no link da bio e vem fazer uma avaliação segura com a nossa equipe.',
-            action: `${speaker} sorri com dentes naturais e harmônicos, cruzando as mãos com tranquilidade na bancada.`,
-            visualIdea: 'Plano Médio iluminado com luz de recorte suave nos ombros.',
-            emotionalIntention: 'Segurança médica e agendamento confiante.',
-            durationSec: Math.max(6, Math.round(durationSec * 0.25)),
-            shotType: 'Plano Médio (35mm)',
-            transition: 'Fade out',
-          },
-        ],
+        description: 'Por que receitas abrasivas de internet destroem o esmalte e como o clareamento por oxigenação age de verdade.',
+        hook: '"Se você comprou carvão ativado ou receita da internet achando que ia clarear o dente em casa, você precisa ver isso aqui."',
+        central_question: 'Por que receitas milagrosas causam sensibilidade irreversível e como agir com segurança?',
+        cta: '"Não troque a saúde do seu sorriso por um atalho da internet. Clica no link da bio e faça sua avaliação segura com a gente."',
+        creative_justification: 'Alerta clínico preventivo que desmonta atalhos perigosos de forma didática e posiciona o consultório como o único caminho seguro e duradouro.',
+        scenes: (durationSec, speaker) => {
+          const { s1, s2, s3, s4, s5 } = distribute5Scenes(durationSec);
+          return [
+            {
+              sceneNumber: 1,
+              sceneName: 'CENA 01 — O ALERTA DO ESMALTE',
+              stage: 'hook',
+              objective: 'Interromper o hábito de seguir receitas milagrosas de redes sociais',
+              narrativePurpose: 'Abertura do dilema com alerta direto sobre um perigo silencioso',
+              dialogue: 'Se você comprou carvão ativado ou receita da internet achando que ia clarear o dente em casa, você precisa ver isso aqui.',
+              action: `${speaker} posicionado a 1,5m da parede de fundo do consultório, jaleco impecável, olhar atento e firme para a lente.`,
+              visualIdea: 'Plano Médio vertical, luz suave envolvente com tons frios e limpos de consultório premium.',
+              emotionalIntention: 'Alerta e respeito técnico imediato.',
+              durationSec: s1,
+              shotType: 'Plano Médio (35mm)',
+              transition: 'Corte no olhar',
+            },
+            {
+              sceneNumber: 2,
+              sceneName: 'CENA 02 — O DESGASTE IRREVERSÍVEL',
+              stage: 'development',
+              objective: 'Explicar a consequência oculta das substâncias abrasivas',
+              narrativePurpose: 'Desenvolvimento causal: abrasão física vs estrutura biológica',
+              dialogue: 'Essas receitas caseiras não tiram manchas: elas lixam e desgastam o seu esmalte. E esmalte é a única estrutura do corpo humano que nunca mais se regenera.',
+              action: `${speaker} aponta para um modelo anatômico de dente na bancada, indicando a camada translúcida protetora.`,
+              visualIdea: 'Close Médio no modelo e na explicação serena do especialista.',
+              emotionalIntention: 'Choque de realidade preventiva.',
+              durationSec: s2,
+              shotType: 'Close Médio (50mm)',
+              transition: 'Corte no instrumento',
+            },
+            {
+              sceneNumber: 3,
+              sceneName: 'CENA 03 — A CIÊNCIA DA OXIGENAÇÃO',
+              stage: 'discovery',
+              objective: 'Apresentar a química real do clareamento seguro',
+              narrativePurpose: 'Ponto de virada: como clarear de dentro para fora sem atrito',
+              dialogue: 'Clareamento seguro age por oxigênio dentro dos microporos do dente, quebrando as moléculas de pigmento lá dentro sem encostar na estrutura mineral.',
+              action: `${speaker} mostra a seringa de gel clínico de precisão sob luz neutra com extremo cuidado.`,
+              visualIdea: 'Macro detalhe da seringa dosadora de alta pureza.',
+              emotionalIntention: 'Clareza científica e confiança médica.',
+              durationSec: s3,
+              shotType: 'Close Detalhe (85mm)',
+              transition: 'Corte na seringa',
+            },
+            {
+              sceneNumber: 4,
+              sceneName: 'CENA 04 — O BRILHO TRANSLÚCIDO',
+              stage: 'consequence',
+              objective: 'Descrever o resultado palpável do procedimento correto',
+              narrativePurpose: 'Consequência positiva: dente branco com saúde e sem dores',
+              dialogue: 'O resultado é um dente branco de verdade, com brilho translúcido natural e sem aquela sensibilidade insuportável de quem lixou o próprio esmalte.',
+              action: `${speaker} volta o olhar para a câmera com sorriso sereno, natural e harmônico.`,
+              visualIdea: 'Plano Médio vertical com iluminação evidenciando a luminosidade saudável do rosto.',
+              emotionalIntention: 'Alívio e desejo de resultado seguro.',
+              durationSec: s4,
+              shotType: 'Plano Médio (35mm)',
+              transition: 'Corte seco',
+            },
+            {
+              sceneNumber: 5,
+              sceneName: 'CENA 05 — A ESCOLHA SEGURA',
+              stage: 'cta',
+              objective: 'Fechar o ciclo com agendamento preventivo no consultório',
+              narrativePurpose: 'CTA derivado do aprendizado biológico',
+              dialogue: 'Não troque a saúde do seu sorriso por um atalho da internet. Clica no link da bio e faça sua avaliação segura com a gente.',
+              action: `${speaker} apoia as mãos com calma na bancada e faz convite receptivo e caloroso.`,
+              visualIdea: 'Plano Médio acolhedor com luz de recorte destacando os ombros.',
+              emotionalIntention: 'Decisão médica confiável.',
+              durationSec: s5,
+              shotType: 'Plano Médio (35mm)',
+              transition: 'Fade out',
+            },
+          ];
+        },
       },
       {
         key: 'harmonia',
         name: 'A Estética Invisível do Sorriso',
         shortLabel: '2. A Estética Invisível',
-        description: 'Por que o melhor trabalho odontológico é aquele que ninguém percebe que é artificial.',
-        hook: '"O melhor procedimento estético no dente é aquele que ninguém percebe que você fez. Sorriso bonito é harmonia, não um bloco branco artificial."',
-        central_question: 'Como a odontologia moderna preserva a naturalidade e anatomia dos dentes?',
-        cta: '"Agende sua avaliação estética no link da bio e descubra como a sutileza transforma o seu rosto."',
-        creative_justification: 'Ataca o medo generalizado de ficar com "dentes de chiclete", atraindo um público maduro e de alto poder aquisitivo.',
-        scenes: (durationSec, speaker) => [
-          {
-            sceneNumber: 1,
-            sceneName: 'CENA 01 — O FIM DO DENTE DE CHICLETE',
-            stage: 'hook',
-            objective: 'Criticar a artificialidade dos sorrisos padronizados',
-            narrativePurpose: 'Conexão com quem busca elegância discreta',
-            dialogue: 'O melhor procedimento odontológico do mundo é aquele que ninguém percebe que você fez. Sorriso elegante é naturalidade, não uma fileira de dentes quadrados e opacos.',
-            action: `${speaker} a 1,5m do fundo, postura serena, quebrando o mito do artificialismo estético.`,
-            visualIdea: 'Plano Médio com contraluz que destaca a transparência das bordas incisais no consultório.',
-            emotionalIntention: 'Alívio para quem tem receio de procedimentos estéticos.',
-            durationSec: Math.max(5, Math.round(durationSec * 0.2)),
-            shotType: 'Plano Médio (35mm)',
-            transition: 'Corte no olhar',
-          },
-          {
-            sceneNumber: 2,
-            sceneName: 'CENA 02 — ANATOMIA E TRANSLUCIDEZ',
-            stage: 'discovery',
-            objective: 'Mostrar o diferencial de restaurações biomiméticas',
-            narrativePurpose: 'Autoridade estética avançada',
-            dialogue: 'Dente de verdade tem textura, degradê de cor e translucidez na ponta. Respeitar as proporções do seu rosto e o arco do seu lábio é o que traz rejuvenescimento real.',
-            action: `${speaker} analisa uma escala de cores cerâmicas sob luz neutra, mostrando as gradações sutis de tom.`,
-            visualIdea: 'Close Médio nas pastilhas cerâmicas e no olhar clínico refinado.',
-            emotionalIntention: 'Percepção de arte e alta precisão médica.',
-            durationSec: Math.max(14, Math.round(durationSec * 0.55)),
-            shotType: 'Close Médio (50mm)',
-            transition: 'Corte na escala de cor',
-          },
-          {
-            sceneNumber: 3,
-            sceneName: 'CENA 03 — O CONVITE À HARMONIA',
-            stage: 'cta',
-            objective: 'Agendamento de consulta estética personalizada',
-            narrativePurpose: 'Conversão com foco em sofisticação',
-            dialogue: 'Se você busca harmonia sem perder a sua identidade, clica no link da bio e vem planejar o seu novo sorriso com a gente.',
-            action: `${speaker} sorri com serenidade e aponta de forma sutil para a frente.`,
-            visualIdea: 'Plano Médio elegante com ambiente acolhedor.',
-            emotionalIntention: 'Desejo de transformação personalizada e segura.',
-            durationSec: Math.max(6, Math.round(durationSec * 0.25)),
-            shotType: 'Plano Médio (35mm)',
-            transition: 'Fade out',
-          },
-        ],
+        description: 'Por que o melhor procedimento estético é aquele que ninguém percebe que é artificial.',
+        hook: '"O melhor procedimento estético no dente é aquele que todo mundo elogia, mas ninguém percebe que você fez."',
+        central_question: 'Como a biomimética dental preserva a naturalidade e anatomia única de cada rosto?',
+        cta: '"Se você busca harmonia sem perder a sua identidade, clica no link da bio e venha planejar o seu novo sorriso com a gente."',
+        creative_justification: 'Combate a epidemia de sorrisos artificiais quadrados e brancos demais, atraindo pacientes que valorizam sutileza, elegância e longevidade.',
+        scenes: (durationSec, speaker) => {
+          const { s1, s2, s3, s4, s5 } = distribute5Scenes(durationSec);
+          return [
+            {
+              sceneNumber: 1,
+              sceneName: 'CENA 01 — O FIM DO ARTIFICIAL',
+              stage: 'hook',
+              objective: 'Definir o padrão de excelência estética através da discrição',
+              narrativePurpose: 'Abertura conceitual que conecta com a busca por elegância real',
+              dialogue: 'O melhor procedimento estético no dente é aquele que todo mundo elogia, mas ninguém percebe que você fez.',
+              action: `${speaker} a 1,5m da parede de fundo, postura relaxada e serena, olhar límpido para a câmera.`,
+              visualIdea: 'Plano Médio vertical com profundidade suave e iluminação natural neutra.',
+              emotionalIntention: 'Alívio para quem tem pavor de dentes artificiais.',
+              durationSec: s1,
+              shotType: 'Plano Médio (35mm)',
+              transition: 'Corte no olhar',
+            },
+            {
+              sceneNumber: 2,
+              sceneName: 'CENA 02 — A CRÍTICA AO CHICLETE',
+              stage: 'development',
+              objective: 'Expor o erro comum dos sorrisos padronizados de internet',
+              narrativePurpose: 'Desenvolvimento do contraste: o artificial vs a beleza única',
+              dialogue: 'Hoje em dia tem muita gente saindo do consultório com bloco branco, opaco e quadrado, parecendo chiclete colado na boca.',
+              action: `${speaker} balança levemente a cabeça de forma reflexiva, demonstrando respeito pela individualidade do paciente.`,
+              visualIdea: 'Close Médio focado na honestidade da expressão do dentista.',
+              emotionalIntention: 'Conexão com o bom gosto e crítica elegante.',
+              durationSec: s2,
+              shotType: 'Close Médio (50mm)',
+              transition: 'Corte no semblante',
+            },
+            {
+              sceneNumber: 3,
+              sceneName: 'CENA 03 — A ANATOMIA BIOMIMÉTICA',
+              stage: 'discovery',
+              objective: 'Apresentar a anatomia natural de dentes reais',
+              narrativePurpose: 'Revelação técnica da ciência por trás da textura e translucidez',
+              dialogue: 'Dente bonito de verdade tem translucidez na ponta, textura natural e acompanha a curvatura do seu lábio quando você sorri de forma espontânea.',
+              action: `${speaker} segura uma pastilha cerâmica sob luz balanceada, mostrando as variações milimétricas de tom.`,
+              visualIdea: 'Close nos detalhes cerâmicos com foco seletivo e profundidade rasa.',
+              emotionalIntention: 'Admiração pela precisão artística.',
+              durationSec: s3,
+              shotType: 'Close Médio (50mm)',
+              transition: 'Corte na cerâmica',
+            },
+            {
+              sceneNumber: 4,
+              sceneName: 'CENA 04 — O REJUVENESCIMENTO REAL',
+              stage: 'consequence',
+              objective: 'Mostrar o impacto de um sorriso integrado à face',
+              narrativePurpose: 'Consequência de escolher a harmonia em vez da cópia',
+              dialogue: 'Quando o trabalho é biomimético, você não ganha um sorriso genérico de internet: você ganha um rosto rejuvenescido com a sua identidade intacta.',
+              action: `${speaker} gesticula com clareza e elegância, conectando o sorriso com os traços do rosto inteiro.`,
+              visualIdea: 'Plano Americano destacando o porte e a harmonia estética do ambiente.',
+              emotionalIntention: 'Desejo de transformação personalizada.',
+              durationSec: s4,
+              shotType: 'Plano Americano (50mm)',
+              transition: 'Corte seco',
+            },
+            {
+              sceneNumber: 5,
+              sceneName: 'CENA 05 — O CONVITE À HARMONIA',
+              stage: 'cta',
+              objective: 'Conduzir para um planejamento estético personalizado',
+              narrativePurpose: 'Fechamento que responde à tese da Cena 1',
+              dialogue: 'Se você busca harmonia sem perder a sua identidade, clica no link da bio e venha planejar o seu novo sorriso com a gente.',
+              action: `${speaker} sorri com dentes naturais e acolhe o espectador com um convite cordial.`,
+              visualIdea: 'Plano Médio quente e convidativo.',
+              emotionalIntention: 'Decisão segura de agendar.',
+              durationSec: s5,
+              shotType: 'Plano Médio (35mm)',
+              transition: 'Fade out',
+            },
+          ];
+        },
       },
       {
         key: 'bruxismo',
         name: 'A Dor Oculta do Bruxismo',
         shortLabel: '3. A Dor Oculta do Bruxismo',
         description: 'Conectar dores de cabeça matinais e desgaste dental ao hábito noturno de apertar os dentes.',
-        hook: '"Acordar com dor de cabeça matinal ou maxilar travado não é cansaço do dia anterior: é o reflexo do que acontece na sua mordida enquanto você dorme."',
+        hook: '"Acordar com dor de cabeça matinal ou maxilar travado não é cansaço da sua rotina: é sinal de que sua mordida trabalhou a noite inteira."',
         central_question: 'Como diagnosticar e proteger os dentes das fraturas causadas pelo bruxismo?',
-        cta: '"Proteja seus dentes antes de quebrar. Clica no link da bio e faça seu diagnóstico de oclusão."',
-        creative_justification: 'Relaciona um sintoma rotineiro ignorado por muitos a um problema clínico grave, gerando procura urgente por tratamento preventivo.',
-        scenes: (durationSec, speaker) => [
-          {
-            sceneNumber: 1,
-            sceneName: 'CENA 01 — O SINTOMA ENGANOSO',
-            stage: 'hook',
-            objective: 'Associar dor de cabeça matinal à saúde bucal',
-            narrativePurpose: 'Descoberta que choca o espectador',
-            dialogue: 'Acordar com dor de cabeça matinal ou sensação de peso no maxilar quase nunca é estresse passageiro: é o sinal claro de que você está apertando os dentes a noite inteira.',
-            action: `${speaker} toca suavemente a região da articulação temporomandibular (ATM), olhar empático para a câmera.`,
-            visualIdea: 'Plano Médio vertical, luz direcional destacando a expressão atenta do profissional.',
-            emotionalIntention: 'Alerta e autoidentificação imediata.',
-            durationSec: Math.max(5, Math.round(durationSec * 0.2)),
-            shotType: 'Plano Médio (35mm)',
-            transition: 'Corte no toque',
-          },
-          {
-            sceneNumber: 2,
-            sceneName: 'CENA 02 — O DESGASTE INVISÍVEL',
-            stage: 'discovery',
-            objective: 'Alertar para as microfraturas e retração gengival',
-            narrativePurpose: 'Conscientização preventiva',
-            dialogue: 'A força da mordida dormindo chega a ser três vezes maior do que acordado. Isso trinca o esmalte, causa sensibilidade nas raízes e encurta os dentes ao longo dos anos.',
-            action: `${speaker} mostra placa de proteção oclusal transparente de precisão milimétrica.`,
-            visualIdea: 'Close Médio na placa oclusal cristalina e na solidez da explicação.',
-            emotionalIntention: 'Urgência preventiva.',
-            durationSec: Math.max(14, Math.round(durationSec * 0.55)),
-            shotType: 'Close Médio (50mm)',
-            transition: 'Corte na placa',
-          },
-          {
-            sceneNumber: 3,
-            sceneName: 'CENA 03 — A PREVENÇÃO URGENTE',
-            stage: 'cta',
-            objective: 'Conduzir para consulta de alívio e proteção',
-            narrativePurpose: 'Solução acessível e necessária',
-            dialogue: 'Não espere um dente quebrar para agir. Clica no link da bio e agenda uma avaliação da sua articulação ainda nesta semana.',
-            action: `${speaker} convida o paciente com gesto afetuoso e acolhedor.`,
-            visualIdea: 'Plano Médio iluminado com profundidade.',
-            emotionalIntention: 'Alívio e decisão imediata.',
-            durationSec: Math.max(6, Math.round(durationSec * 0.25)),
-            shotType: 'Plano Médio (35mm)',
-            transition: 'Fade out',
-          },
-        ],
+        cta: '"Não espere um dente quebrar para proteger sua articulação. Clica no link da bio e agenda sua avaliação ainda esta semana."',
+        creative_justification: 'Relaciona um sintoma rotineiro ignorado por muitos a um problema clínico grave, gerando busca urgente por proteção preventiva.',
+        scenes: (durationSec, speaker) => {
+          const { s1, s2, s3, s4, s5 } = distribute5Scenes(durationSec);
+          return [
+            {
+              sceneNumber: 1,
+              sceneName: 'CENA 01 — O SINTOMA ENGANOSO',
+              stage: 'hook',
+              objective: 'Associar dores matinais ao desgaste dental noturno',
+              narrativePurpose: 'Abertura do mistério: o cansaço que na verdade é sobrecarga mecânica',
+              dialogue: 'Acordar com dor de cabeça matinal ou maxilar travado não é cansaço da sua rotina: é sinal de que sua mordida trabalhou a noite inteira.',
+              action: `${speaker} toca suavemente a região da ATM (mandíbula), olhar focado e empático na lente.`,
+              visualIdea: 'Plano Médio vertical com iluminação direcional destacando a expressão atenta do médico.',
+              emotionalIntention: 'Identificação imediata de um sintoma cotidiano.',
+              durationSec: s1,
+              shotType: 'Plano Médio (35mm)',
+              transition: 'Corte no toque',
+            },
+            {
+              sceneNumber: 2,
+              sceneName: 'CENA 02 — A SOBRECARGA NOTURNA',
+              stage: 'development',
+              objective: 'Explicar a intensidade da força mandibular inconsciente',
+              narrativePurpose: 'Desenvolvimento do dado chocante: a força 3x maior',
+              dialogue: 'Enquanto você dorme, a mandíbula chega a apertar os dentes com uma força até três vezes maior do que você consegue fazer acordado.',
+              action: `${speaker} fecha a mão com firmeza para demonstrar visualmente a pressão contínua do bruxismo.`,
+              visualIdea: 'Close Médio no gesto enérgico e controlado das mãos do especialista.',
+              emotionalIntention: 'Espanto e urgência consciente.',
+              durationSec: s2,
+              shotType: 'Close Médio (50mm)',
+              transition: 'Corte na mão',
+            },
+            {
+              sceneNumber: 3,
+              sceneName: 'CENA 03 — O DANO PROGRESSIVO',
+              stage: 'discovery',
+              objective: 'Alertar sobre as microfraturas e o encurtamento dental',
+              narrativePurpose: 'Ponto de inflexão: a consequência acumulada ao longo dos anos',
+              dialogue: 'Com o tempo, essa sobrecarga invisível trinca o esmalte, retrai a gengiva e vai encurtando o tamanho dos seus dentes sem você notar.',
+              action: `${speaker} aponta para uma arcada dental explicativa na bancada, indicando as bordas desgastadas.`,
+              visualIdea: 'Close no modelo anatômico evidenciando o atrito das bordas oclusais.',
+              emotionalIntention: 'Conscientização preventiva.',
+              durationSec: s3,
+              shotType: 'Close Detalhe (50mm)',
+              transition: 'Corte no modelo',
+            },
+            {
+              sceneNumber: 4,
+              sceneName: 'CENA 04 — O ALÍVIO ESTRUTURAL',
+              stage: 'consequence',
+              objective: 'Apresentar a placa oclusal precisa como solução de alívio imediato',
+              narrativePurpose: 'Consequência restauradora: dissipar a força e proteger a musculatura',
+              dialogue: 'Uma placa oclusal de precisão milimétrica dissipa essa força noturna, relaxa os músculos da cabeça e protege seus dentes de fraturas graves.',
+              action: `${speaker} segura uma placa oclusal cristalina entre os dedos sob iluminação nítida.`,
+              visualIdea: 'Macro detalhe da placa transparente com acabamento anatômico perfeito.',
+              emotionalIntention: 'Alívio e descoberta da solução viável.',
+              durationSec: s4,
+              shotType: 'Close Médio (50mm)',
+              transition: 'Corte na placa',
+            },
+            {
+              sceneNumber: 5,
+              sceneName: 'CENA 05 — A PREVENÇÃO URGENTE',
+              stage: 'cta',
+              objective: 'Estimular a consulta de diagnóstico de mordida',
+              narrativePurpose: 'Fechamento que responde à pergunta da Cena 1',
+              dialogue: 'Não espere um dente quebrar para proteger sua articulação. Clica no link da bio e agenda sua avaliação ainda esta semana.',
+              action: `${speaker} convida o espectador com olhar seguro e afetuoso, estendendo a mão cordialmente.`,
+              visualIdea: 'Plano Médio acolhedor com luz suave e profissional.',
+              emotionalIntention: 'Decisão de saúde imediata.',
+              durationSec: s5,
+              shotType: 'Plano Médio (35mm)',
+              transition: 'Fade out',
+            },
+          ];
+        },
       },
     ],
   },
@@ -506,116 +690,178 @@ export const STRATEGIC_PLAYBOOKS: Record<string, NichePlaybook> = {
     nicheKey: 'gastronomia',
     nicheName: 'Gastronomia & Hambúrguer Artesanal',
     defaultClient: 'Hamburgueria Artesanal',
-    defaultSpeaker: 'o chef chapeiro',
+    defaultSpeaker: 'o chef artesanal',
     targetAudience: 'Amantes de boa comida que valorizam sabor real e suculência técnica',
     angles: [
       {
         key: 'crosta',
         name: 'O Segredo da Crosta Perfeita (Maillard)',
         shortLabel: '1. O Segredo da Crosta Perfeita',
-        description: 'Por que o hambúrguer de verdade nunca deve ser esmagado depois que já começou a chiar na chapa.',
-        hook: '"Você sabe por que um hambúrguer artesanal de verdade nunca deve ser amassado na chapa depois que sela?"',
+        description: 'Por que o hambúrguer artesanal nunca deve ser amassado na chapa depois que sela.',
+        hook: '"Você sabe por que um hambúrguer artesanal nunca deve ser amassado na chapa depois que começa a chiar?"',
         central_question: 'Como a reação de Maillard concentra os sucos nobres dentro da carne?',
-        cta: '"Quer provar essa crocância com suculência extrema? Clica no link da bio e confere o cardápio de hoje."',
-        creative_justification: 'Desperta água na boca através da ciência culinária e sensorialidade visual, atraindo o cliente pelo desejo incontrolável do primeiro pedaço.',
-        scenes: (durationSec, speaker) => [
-          {
-            sceneNumber: 1,
-            sceneName: 'CENA 01 — O CRIME DA ESPÁTULA',
-            stage: 'hook',
-            objective: 'Chocar com um erro comum que estraga a carne',
-            narrativePurpose: 'Autoridade sensorial instantânea',
-            dialogue: 'Você sabe por que um hambúrguer artesanal nunca deve ser amassado na chapa depois que começa a chiar? Porque cada gota que evapora ali era a suculência da sua mordida.',
-            action: `${speaker} com avental de couro em frente à chapa quente, segurando espátula pesada, olhar focado e direto na lente.`,
-            visualIdea: 'Plano Médio vertical, vapor quente subindo suavemente ao fundo com iluminação quente de cozinha industrial.',
-            emotionalIntention: 'Apetite agudo e curiosidade gastronômica.',
-            durationSec: Math.max(5, Math.round(durationSec * 0.2)),
-            shotType: 'Plano Médio (35mm)',
-            transition: 'Corte no vapor',
-          },
-          {
-            sceneNumber: 2,
-            sceneName: 'CENA 02 — A QUÍMICA DA CROSTINHA',
-            stage: 'discovery',
-            objective: 'Explicar a crosta caramelizada perfeita',
-            narrativePurpose: 'Apetite visual e respeito ao ingrediente',
-            dialogue: 'A crosta dourada é a reação de Maillard: calor violento nos primeiros segundos para trancar todo o sabor lá dentro, deixando o centro macio e rosado.',
-            action: `${speaker} vira o burger na chapa revelando a crostinha caramelizada perfeita e crocante.`,
-            visualIdea: 'Macro Close focado na carne borbulhando e na textura irresistível da crosta.',
-            emotionalIntention: 'Desejo gustativo incontrolável.',
-            durationSec: Math.max(14, Math.round(durationSec * 0.55)),
-            shotType: 'Close Detalhe (85mm)',
-            transition: 'Corte seco no som do chiar',
-          },
-          {
-            sceneNumber: 3,
-            sceneName: 'CENA 03 — A MORDIDA INEVITÁVEL',
-            stage: 'cta',
-            objective: 'Converter a fome visual em pedido imediato',
-            narrativePurpose: 'Convocação para o delivery ou salão',
-            dialogue: 'Sabor de verdade não precisa de exagero. Clica no link da bio, pede o seu agora e sente a diferença na primeira mordida.',
-            action: `${speaker} fecha o burger no pão brioche amanteigado brilhante e apresenta à câmera com orgulho de artesão.`,
-            visualIdea: 'Plano Médio em ângulo dinâmico com fumaça aromática.',
-            emotionalIntention: 'Ação de compra imediata.',
-            durationSec: Math.max(6, Math.round(durationSec * 0.25)),
-            shotType: 'Plano Médio (35mm)',
-            transition: 'Fade out apetitoso',
-          },
-        ],
+        cta: '"Hambúrguer de verdade respeita a química da carne. Clica no link da bio, pede o seu agora e sente a diferença no primeiro pedaço."',
+        creative_justification: 'Desperta água na boca através da ciência culinária e sensorialidade visual contínua, atraindo pelo desejo da primeira mordida.',
+        scenes: (durationSec, speaker) => {
+          const { s1, s2, s3, s4, s5 } = distribute5Scenes(durationSec);
+          return [
+            {
+              sceneNumber: 1,
+              sceneName: 'CENA 01 — O CRIME DA ESPÁTULA',
+              stage: 'hook',
+              objective: 'Interromper o scroll com uma curiosidade sensorial sobre o preparo',
+              narrativePurpose: 'Abertura com pergunta técnica intrigante diante da chapa quente',
+              dialogue: 'Você sabe por que um hambúrguer artesanal nunca deve ser amassado na chapa depois que começa a chiar?',
+              action: `${speaker} com avental de couro diante da chapa quente, segurando espátula pesada, olhar focado e direto na lente.`,
+              visualIdea: 'Plano Médio vertical, vapor quente subindo suavemente ao fundo com tons quentes de cozinha artesanal.',
+              emotionalIntention: 'Apetite agudo e curiosidade gastronômica.',
+              durationSec: s1,
+              shotType: 'Plano Médio (35mm)',
+              transition: 'Corte no vapor',
+            },
+            {
+              sceneNumber: 2,
+              sceneName: 'CENA 02 — A EVAPORAÇÃO DO SABOR',
+              stage: 'development',
+              objective: 'Explicar a perda de suculência do erro comum',
+              narrativePurpose: 'Desenvolvimento causal: onde vai parar a suculência',
+              dialogue: 'Cada gota que escorre e evapora na fumaça da chapa era a gordura nobre e a suculência que deveriam estar na sua primeira mordida.',
+              action: `${speaker} aponta para o vapor aromático subindo da chapa, balançando a cabeça em reprovação amigável.`,
+              visualIdea: 'Close Médio focado na intensidade da expressão do chapeiro.',
+              emotionalIntention: 'Desejo de proteger o sabor do hambúrguer.',
+              durationSec: s2,
+              shotType: 'Close Médio (50mm)',
+              transition: 'Corte seco',
+            },
+            {
+              sceneNumber: 3,
+              sceneName: 'CENA 03 — A REAÇÃO DE MAILLARD',
+              stage: 'discovery',
+              objective: 'Revelar a química da crostinha dourada crocante',
+              narrativePurpose: 'Ponto de virada gastronômico: o choque térmico que sela o interior',
+              dialogue: 'O segredo da carne perfeita é a reação de Maillard: calor violento nos primeiros segundos para formar uma crostinha caramelizada que sela todo o sabor lá dentro.',
+              action: `${speaker} vira o hambúrguer na chapa com precisão milimétrica, revelando a crosta dourada e fumegante.`,
+              visualIdea: 'Macro Detalhe da carne borbulhando e da textura crocante caramelizada.',
+              emotionalIntention: 'Vontade irresistível de saborear.',
+              durationSec: s3,
+              shotType: 'Close Detalhe (85mm)',
+              transition: 'Corte no som do chiar',
+            },
+            {
+              sceneNumber: 4,
+              sceneName: 'CENA 04 — O CONTRASTE TEXTURAL',
+              stage: 'consequence',
+              objective: 'Descrever o contraste na mordida entre casquinha e centro macio',
+              narrativePurpose: 'Consequência prática da técnica no paladar do cliente',
+              dialogue: 'Por fora você ganha aquela crocância tostada irresistível, e por dentro a carne continua macia, rosada e extremamente suculenta.',
+              action: `${speaker} corta o hambúrguer ao meio revelando o miolo rosado e brilhante de sucos preservados.`,
+              visualIdea: 'Close Médio do corte transversal limpo em tábua de madeira rústica.',
+              emotionalIntention: 'Salivação imediata e apetite extremo.',
+              durationSec: s4,
+              shotType: 'Close Médio (50mm)',
+              transition: 'Corte na lâmina',
+            },
+            {
+              sceneNumber: 5,
+              sceneName: 'CENA 05 — O CONVITE À MORDIDA',
+              stage: 'cta',
+              objective: 'Converter o apetite visual em pedido imediato no delivery ou salão',
+              narrativePurpose: 'Fechamento que fecha o ciclo da pergunta da Cena 1',
+              dialogue: 'Hambúrguer de verdade respeita o ponto da carne. Clica no link da bio, pede o seu agora e sente a diferença no primeiro pedaço.',
+              action: `${speaker} fecha o burger no pão brioche dourado brilhante e apresenta à câmera com orgulho de artesão.`,
+              visualIdea: 'Plano Médio em ângulo dinâmico com iluminação quente de salão.',
+              emotionalIntention: 'Ação de compra e consumo imediato.',
+              durationSec: s5,
+              shotType: 'Plano Médio (35mm)',
+              transition: 'Fade out apetitoso',
+            },
+          ];
+        },
       },
       {
         key: 'equilibrio',
         name: 'Menos é Mais no Sabor',
         shortLabel: '2. Menos é Mais no Sabor',
-        description: 'Por que empilhar dezenas de molhos esconde a qualidade da carne em vez de valorizar.',
-        hook: '"Pilha de queijo derretido escorrendo pode render foto bonita na internet, mas o verdadeiro teste do hambúrguer está no equilíbrio de apenas três ingredientes."',
+        description: 'Por que pilhas de molhos artificiais escondem a má qualidade da carne e como o equilíbrio valoriza o produto.',
+        hook: '"Pilha de queijo cheddar escorrendo pode até render vídeo chamativo na internet, mas quase sempre esconde uma carne sem sabor."',
         central_question: 'Por que o excesso de molhos esconde a má qualidade de um blend mal preparado?',
-        cta: '"Prove o verdadeiro sabor da carne artesanal. Clica no link da bio e peça o clássico autoral da casa."',
-        creative_justification: 'Critica a estética exagerada de "food porn" descartável e valoriza a receita autoral de quem realmente domina o corte e a temperagem.',
-        scenes: (durationSec, speaker) => [
-          {
-            sceneNumber: 1,
-            sceneName: 'CENA 01 — O EXCESSO ENGANOSO',
-            stage: 'hook',
-            objective: 'Criticar os lanches afogados em cheddar artificial',
-            narrativePurpose: 'Afirmação de respeito gastronômico',
-            dialogue: 'Pilha de queijo derretido escorrendo pode até render foto bonita na internet, mas na boca você só sente gosto de gordura hidrogenada.',
-            action: `${speaker} a 1,5m da bancada de montagem, segurando um pão brioche dourado e fresco, postura firme e autêntica.`,
-            visualIdea: 'Plano Médio vertical, luz quente acolhedora valorizando os tons dourados dos pães.',
-            emotionalIntention: 'Quebra de modismo e conexão com o bom gosto.',
-            durationSec: Math.max(5, Math.round(durationSec * 0.2)),
-            shotType: 'Plano Médio (35mm)',
-            transition: 'Corte no olhar',
-          },
-          {
-            sceneNumber: 2,
-            sceneName: 'CENA 02 — O TRIO ESSENCIAL',
-            stage: 'discovery',
-            objective: 'Apresentar a tríade: pão macio, blend fresco e queijo curado',
-            narrativePurpose: 'Construção de autoridade culinária',
-            dialogue: 'O verdadeiro teste do hambúrguer está no trio clássico: um pão que sustenta até o final sem desmanchar, um blend bovino fresco de alta qualidade e o queijo derretido na medida certa.',
-            action: `${speaker} corta o hambúrguer ao meio em tábua rústica de madeira, revelando a carne suculenta e rosada por dentro.`,
-            visualIdea: 'Close Médio no corte transversal limpo, mostrando cada camada bem equilibrada.',
-            emotionalIntention: 'Vontade imediata de saborear.',
-            durationSec: Math.max(14, Math.round(durationSec * 0.55)),
-            shotType: 'Close Médio (50mm)',
-            transition: 'Corte no toque da lâmina',
-          },
-          {
-            sceneNumber: 3,
-            sceneName: 'CENA 03 — A EXPERIÊNCIA REAL',
-            stage: 'cta',
-            objective: 'Convidar para experimentar no salão ou pedir delivery',
-            narrativePurpose: 'Chamada direta ao paladar refinado',
-            dialogue: 'Se você valoriza sabor de verdade sem artimanhas, o link está na bio. Vem viver essa experiência hoje à noite.',
-            action: `${speaker} sorri com orgulho do prato pronto e apoia os braços na bancada limpa.`,
-            visualIdea: 'Plano Médio com ambiente da hamburgueria ao fundo.',
-            emotionalIntention: 'Fome e decisão rápida.',
-            durationSec: Math.max(6, Math.round(durationSec * 0.25)),
-            shotType: 'Plano Médio (35mm)',
-            transition: 'Fade out',
-          },
-        ],
+        cta: '"Se você valoriza sabor de verdade sem exageros vazios, o link do cardápio está na bio. Vem provar o autoral da casa hoje."',
+        creative_justification: 'Critica o food porn exagerado e superficial da internet e valoriza o respeito ao produto artesanal de verdade.',
+        scenes: (durationSec, speaker) => {
+          const { s1, s2, s3, s4, s5 } = distribute5Scenes(durationSec);
+          return [
+            {
+              sceneNumber: 1,
+              sceneName: 'CENA 01 — A ILUSÃO DO EXCESSO',
+              stage: 'hook',
+              objective: 'Chocar quebrando a ilusão de lanches afogados em queijo artificial',
+              narrativePurpose: 'Abertura provocativa contra o modismo visual vazio',
+              dialogue: 'Pilha de queijo cheddar escorrendo pode até render vídeo chamativo na internet, mas quase sempre esconde uma carne sem sabor.',
+              action: `${speaker} a 1,5m da bancada, segurando um pão brioche fresco e dourado, postura firme e autêntica.`,
+              visualIdea: 'Plano Médio vertical, luz quente acolhedora valorizando tons dourados dos pães frescos.',
+              emotionalIntention: 'Quebra de padrão e curiosidade crítica.',
+              durationSec: s1,
+              shotType: 'Plano Médio (35mm)',
+              transition: 'Corte no olhar',
+            },
+            {
+              sceneNumber: 2,
+              sceneName: 'CENA 02 — A SOBREPOSIÇÃO DE SABORES',
+              stage: 'development',
+              objective: 'Explicar a perda do paladar pelo excesso de condimentos pesados',
+              narrativePurpose: 'Desenvolvimento do problema culinário',
+              dialogue: 'Quando você empilha dez ingredientes pesados no mesmo sanduíche, você não sente o sabor da carne, só sente gordura e excesso de sal.',
+              action: `${speaker} gesticula com as mãos mostrando o empilhamento desordenado que anula o paladar.`,
+              visualIdea: 'Close Médio na expressão convicta do chef artesanal.',
+              emotionalIntention: 'Conexão com quem aprecia boa comida.',
+              durationSec: s2,
+              shotType: 'Close Médio (50mm)',
+              transition: 'Corte no gesto',
+            },
+            {
+              sceneNumber: 3,
+              sceneName: 'CENA 03 — A TRÍADE ESSENCIAL',
+              stage: 'discovery',
+              objective: 'Apresentar a tríade da alta gastronomia de rua',
+              narrativePurpose: 'Ponto de virada: os três elementos que sustentam o sabor autêntico',
+              dialogue: 'O verdadeiro teste de um hambúrguer artesanal está no equilíbrio de três coisas: pão brioche amanteigado, blend bovino fresco no ponto correto e queijo curado derretido na medida certa.',
+              action: `${speaker} monta o hambúrguer em passos firmes e limpos, cada camada visível e respeitada.`,
+              visualIdea: 'Close dinâmico acompanhando a montagem artesanal precisa.',
+              emotionalIntention: 'Respeito à gastronomia e clareza de proposta.',
+              durationSec: s3,
+              shotType: 'Close Médio (50mm)',
+              transition: 'Corte na montagem',
+            },
+            {
+              sceneNumber: 4,
+              sceneName: 'CENA 04 — O SABOR LIMPO DA BRASA',
+              stage: 'consequence',
+              objective: 'Descrever a experiência limpa e marcante da mordida',
+              narrativePurpose: 'Consequência prática da simplicidade sofisticada',
+              dialogue: 'Cada mordida entrega textura, crocância e o sabor limpo da brasa do começo ao fim do lanche.',
+              action: `${speaker} ergue o sanduíche com as duas mãos, mostrando a harmonia de altura e proporção.`,
+              visualIdea: 'Plano Médio com iluminação de recorte e fundo texturizado de cozinha industrial.',
+              emotionalIntention: 'Vontade imediata de viver a experiência gastronômica.',
+              durationSec: s4,
+              shotType: 'Plano Médio (35mm)',
+              transition: 'Corte seco',
+            },
+            {
+              sceneNumber: 5,
+              sceneName: 'CENA 05 — A ESCOLHA DO AUTORAL',
+              stage: 'cta',
+              objective: 'Conduzir para a escolha do produto assinado no cardápio',
+              narrativePurpose: 'Fechamento que encerra a provocação da Cena 1',
+              dialogue: 'Se você valoriza sabor de verdade sem exageros vazios, o link do cardápio está na bio. Vem provar o autoral da casa hoje.',
+              action: `${speaker} sorri com orgulho do produto pronto e faz convite receptivo e seguro.`,
+              visualIdea: 'Plano Médio acolhedor com ambiente iluminado ao fundo.',
+              emotionalIntention: 'Decisão de compra assertiva.',
+              durationSec: s5,
+              shotType: 'Plano Médio (35mm)',
+              transition: 'Fade out',
+            },
+          ];
+        },
       },
     ],
   },
@@ -631,108 +877,170 @@ export const STRATEGIC_PLAYBOOKS: Record<string, NichePlaybook> = {
         name: 'A Ilusão da Exaustão',
         shortLabel: '1. A Ilusão da Exaustão',
         description: 'Por que sair do treino destruído sem conseguir andar não significa que o treino gerou hipertrofia.',
-        hook: '"Sair da academia destruído sem conseguir andar no dia seguinte não significa que o treino funcionou. Cansaço não é sinônimo de resultado."',
+        hook: '"Sair da academia se arrastando sem conseguir subir escadas no dia seguinte não significa que o seu treino gerou resultado."',
         central_question: 'Por que fadiga desorganizada apenas gera inflamação sem ganho muscular real?',
-        cta: '"Quer treinar com inteligência e ver o físico mudar de verdade? Clica no link da bio e conheça nosso método."',
-        creative_justification: 'Desmistifica a cultura do sofrimento inútil ("no pain no gain" irracional) e valoriza o método de progressão de cargas com recuperação otimizada.',
-        scenes: (durationSec, speaker) => [
-          {
-            sceneNumber: 1,
-            sceneName: 'CENA 01 — O MITO DO SOFRIMENTO',
-            stage: 'hook',
-            objective: 'Desmistificar que treino bom é treino que destrói',
-            narrativePurpose: 'Choque de clareza e alívio mental',
-            dialogue: 'Sair da academia se arrastando sem conseguir subir escadas no dia seguinte não significa que o seu treino foi eficiente. Cansaço não é sinônimo de hipertrofia.',
-            action: `${speaker} a 1,5m dos aparelhos de musculação, segurando uma anilha com firmeza, postura atlética e olhar firme.`,
-            visualIdea: 'Plano Médio vertical, iluminação de alto contraste destacando a musculatura e o ambiente de ferro.',
-            emotionalIntention: 'Alívio e reflexão crítica.',
-            durationSec: Math.max(5, Math.round(durationSec * 0.2)),
-            shotType: 'Plano Médio (35mm)',
-            transition: 'Corte no peso',
-          },
-          {
-            sceneNumber: 2,
-            sceneName: 'CENA 02 — A CIÊNCIA DA PROGRESSÃO',
-            stage: 'discovery',
-            objective: 'Explicar a tensão mecânica e a sobrecarga progressiva',
-            narrativePurpose: 'Autoridade biomecânica indiscutível',
-            dialogue: 'O que faz o músculo crescer de verdade é tensão mecânica progressiva: executar o movimento completo com controle e adicionar peso ao longo das semanas, não mudar de exercício todo dia.',
-            action: `${speaker} demonstra a cadência lenta na fase excêntrica de um movimento guiado, com controle absoluto da respiração.`,
-            visualIdea: 'Close Médio nos cabos sob tensão e na contração muscular controlada.',
-            emotionalIntention: 'Entendimento técnico e segurança.',
-            durationSec: Math.max(14, Math.round(durationSec * 0.55)),
-            shotType: 'Close Médio (50mm)',
-            transition: 'Corte na contração',
-          },
-          {
-            sceneNumber: 3,
-            sceneName: 'CENA 03 — A CONVOCAÇÃO PARA O MÉTODO',
-            stage: 'cta',
-            objective: 'Convidar para um acompanhamento inteligente',
-            narrativePurpose: 'Fechamento com foco em consistência',
-            dialogue: 'Chega de cansaço sem espelho correspondente. Clica no link da bio e vem treinar com um plano feito para o seu corpo evoluir de verdade.',
-            action: `${speaker} apoia a anilha no suporte com firmeza e olha direto nos olhos do aluno com incentivo genuíno.`,
-            visualIdea: 'Plano Médio com luz de recorte nos ombros e postura vitoriosa.',
-            emotionalIntention: 'Motivação renovada e ação imediata.',
-            durationSec: Math.max(6, Math.round(durationSec * 0.25)),
-            shotType: 'Plano Médio (35mm)',
-            transition: 'Fade out forte',
-          },
-        ],
+        cta: '"Pare de gastar energia no sofrimento inútil. Clica no link da bio e vem treinar com um plano feito para o seu corpo evoluir de verdade."',
+        creative_justification: 'Desmistifica a cultura do sofrimento irracional ("no pain no gain" vazio) e valoriza o método de progressão de cargas com recuperação otimizada.',
+        scenes: (durationSec, speaker) => {
+          const { s1, s2, s3, s4, s5 } = distribute5Scenes(durationSec);
+          return [
+            {
+              sceneNumber: 1,
+              sceneName: 'CENA 01 — O MITO DO SOFRIMENTO',
+              stage: 'hook',
+              objective: 'Quebrar o senso comum de que dor incapacitante é sinal de bom treino',
+              narrativePurpose: 'Abertura provocativa que liberta o aluno da culpa do cansaço inútil',
+              dialogue: 'Sair da academia se arrastando sem conseguir subir escadas no dia seguinte não significa que o seu treino gerou resultado.',
+              action: `${speaker} a 1,5m dos aparelhos de musculação, segurando uma anilha com firmeza, postura atlética e olhar firme na lente.`,
+              visualIdea: 'Plano Médio vertical, iluminação de alto contraste destacando a musculatura e o ambiente de ferro.',
+              emotionalIntention: 'Alívio mental e reflexão crítica.',
+              durationSec: s1,
+              shotType: 'Plano Médio (35mm)',
+              transition: 'Corte no peso',
+            },
+            {
+              sceneNumber: 2,
+              sceneName: 'CENA 02 — FADIGA NÃO É HIPERTROFIA',
+              stage: 'development',
+              objective: 'Distinguir exaustão cardiovascular de estímulo hipertrófico',
+              narrativePurpose: 'Desenvolvimento do raciocínio fisiológico',
+              dialogue: 'A maioria das pessoas confunde fadiga com hipertrofia. Cansaço qualquer treino aleatório gera; o que constrói músculo é estímulo eficiente.',
+              action: `${speaker} dá meio passo à frente, gesticulando com as mãos abertas de forma didática e firme.`,
+              visualIdea: 'Close Médio na firmeza do olhar do treinador explicando com autoridade biomecânica.',
+              emotionalIntention: 'Esclarecimento e quebra de crença limitante.',
+              durationSec: s2,
+              shotType: 'Close Médio (50mm)',
+              transition: 'Corte no gesto',
+            },
+            {
+              sceneNumber: 3,
+              sceneName: 'CENA 03 — A SOBRECARGA PROGRESSIVA',
+              stage: 'discovery',
+              objective: 'Apresentar a tensão mecânica como verdadeiro gatilho muscular',
+              narrativePurpose: 'Ponto de virada da narrativa: a chave científica da evolução',
+              dialogue: 'O que sinaliza para o corpo construir massa magra é tensão mecânica progressiva: controlar o peso na descida e aumentar a carga gradualmente nas semanas, mantendo a técnica impecável.',
+              action: `${speaker} demonstra a fase excêntrica lenta de um movimento com controle muscular absoluto.`,
+              visualIdea: 'Close Médio nos cabos sob tensão e na contração muscular controlada.',
+              emotionalIntention: 'Entendimento técnico e segurança de execução.',
+              durationSec: s3,
+              shotType: 'Close Médio (50mm)',
+              transition: 'Corte na contração',
+            },
+            {
+              sceneNumber: 4,
+              sceneName: 'CENA 04 — A TRANSFORMAÇÃO NO ESPELHO',
+              stage: 'consequence',
+              objective: 'Explicar o impacto de um treino metódico na recuperação e nas articulações',
+              narrativePurpose: 'Consequência prática do treino inteligente no dia a dia',
+              dialogue: 'Quando você treina com método em vez de treinar até o desmaio, sua recuperação melhora, suas articulações não doem e seu físico muda no espelho.',
+              action: `${speaker} apoia a anilha no suporte com precisão e respira com serenidade atlética.`,
+              visualIdea: 'Plano Americano com luz de recorte nos ombros e postura equilibrada.',
+              emotionalIntention: 'Confiança e motivação lúcida.',
+              durationSec: s4,
+              shotType: 'Plano Americano (35mm)',
+              transition: 'Corte seco',
+            },
+            {
+              sceneNumber: 5,
+              sceneName: 'CENA 05 — O CONVITE AO MÉTODO',
+              stage: 'cta',
+              objective: 'Conduzir para a adesão a uma metodologia com periodização real',
+              narrativePurpose: 'Fechamento que responde ao mito da Cena 1',
+              dialogue: 'Pare de gastar energia no sofrimento inútil. Clica no link da bio e vem treinar com um plano feito para o seu corpo evoluir de verdade.',
+              action: `${speaker} olha direto nos olhos do aluno com incentivo genuíno e estende a mão para a frente.`,
+              visualIdea: 'Plano Médio com luz natural vindo das janelas e atmosfera inspiradora.',
+              emotionalIntention: 'Decisão de treinar com inteligência.',
+              durationSec: s5,
+              shotType: 'Plano Médio (35mm)',
+              transition: 'Fade out forte',
+            },
+          ];
+        },
       },
       {
         key: 'cardio',
         name: 'O Erro do Cardio Antes do Peso',
         shortLabel: '2. Cardio Antes do Treino',
         description: 'Como gastar glicogênio correndo antes da musculação sabota o ganho de massa magra.',
-        hook: '"Se você passa 40 minutos correndo na esteira antes de pegar peso achando que vai queimar mais gordura, está sabotando o seu metabolismo."',
+        hook: '"Se você chega na academia e corre 40 minutos na esteira antes de puxar peso achando que vai queimar mais gordura, você está sabotando seu metabolismo."',
         central_question: 'Qual é a ordem correta entre musculação e aeróbio para acelerar a queima de gordura?',
-        cta: '"Ajuste sua rotina para queimar gordura dormindo. Clica no link da bio e confira nossa consultoria."',
-        creative_justification: 'Corrige um dos erros mais comuns de quem entra na academia para emagrecer, educando sobre otimização metabólica e preservação muscular.',
-        scenes: (durationSec, speaker) => [
-          {
-            sceneNumber: 1,
-            sceneName: 'CENA 01 — A ARMADILHA DA ESTEIRA',
-            stage: 'hook',
-            objective: 'Alertar sobre a ordem ineficiente de exercícios',
-            narrativePurpose: 'Interrupção de padrão de treino',
-            dialogue: 'Se você chega na academia e corre 40 minutos na esteira antes de ir pros pesos achando que isso vai secar mais rápido, pare agora mesmo.',
-            action: `${speaker} desce de uma esteira com expressão séria e acolhedora, posicionando-se a 1,5m do fundo da sala de cardio.`,
-            visualIdea: 'Plano Médio vertical, fundo em desfoque cinematográfico.',
-            emotionalIntention: 'Espanto e interesse imediato.',
-            durationSec: Math.max(5, Math.round(durationSec * 0.2)),
-            shotType: 'Plano Médio (35mm)',
-            transition: 'Corte no passo',
-          },
-          {
-            sceneNumber: 2,
-            sceneName: 'CENA 02 — A QUÍMICA DO GLICOGÊNIO',
-            stage: 'discovery',
-            objective: 'Explicar a reserva de energia primária',
-            narrativePurpose: 'Didática fisiológica de fácil assimilação',
-            dialogue: 'Você gasta sua energia nobre correndo, chega fraco na musculação e não gera estímulo para segurar a massa magra. Faça a musculação pesado primeiro e deixe o cardio para o final.',
-            action: `${speaker} gesticula com clareza mostrando a diferença entre gastar energia útil e usar a gordura como combustível residual.`,
-            visualIdea: 'Close Médio na firmeza do treinador explicando com autoridade.',
-            emotionalIntention: 'Alívio por descobrir o segredo do resultado.',
-            durationSec: Math.max(14, Math.round(durationSec * 0.55)),
-            shotType: 'Close Médio (50mm)',
-            transition: 'Corte seco',
-          },
-          {
-            sceneNumber: 3,
-            sceneName: 'CENA 03 — A ORDEM DO SUCESSO',
-            stage: 'cta',
-            objective: 'Conduzir para a consultoria de treino eficiente',
-            narrativePurpose: 'Proposta clara de suporte profissional',
-            dialogue: 'Treinar certo economiza seu tempo e acelera seu resultado. Clica no link da bio e venha estruturar sua periodização com a gente.',
-            action: `${speaker} sorri com confiança e aponta convidativamente para a bio.`,
-            visualIdea: 'Plano Médio com luz natural vindo das janelas da academia.',
-            emotionalIntention: 'Entusiasmo e decisão prática.',
-            durationSec: Math.max(6, Math.round(durationSec * 0.25)),
-            shotType: 'Plano Médio (35mm)',
-            transition: 'Fade out',
-          },
-        ],
+        cta: '"Treinar na sequência certa economiza seu tempo e dobra os seus resultados. Clica no link da bio e venha estruturar sua rotina com a nossa equipe."',
+        creative_justification: 'Corrige um dos erros mais comuns de quem busca emagrecimento, educando sobre a fisiologia da queima de gordura e preservação muscular.',
+        scenes: (durationSec, speaker) => {
+          const { s1, s2, s3, s4, s5 } = distribute5Scenes(durationSec);
+          return [
+            {
+              sceneNumber: 1,
+              sceneName: 'CENA 01 — A ARMADILHA DA ESTEIRA',
+              stage: 'hook',
+              objective: 'Interromper a prática de exaustão aeróbica prévia à musculação',
+              narrativePurpose: 'Abertura de choque: o esforço que está sabotando o resultado',
+              dialogue: 'Se você chega na academia e corre 40 minutos na esteira antes de puxar peso achando que vai queimar mais gordura, você está sabotando seu metabolismo.',
+              action: `${speaker} desce de uma esteira com expressão séria e acolhedora, posicionando-se a 1,5m do fundo da sala de cardio.`,
+              visualIdea: 'Plano Médio vertical, fundo em desfoque cinematográfico com tons urbanos da academia.',
+              emotionalIntention: 'Espanto e interesse em entender o erro.',
+              durationSec: s1,
+              shotType: 'Plano Médio (35mm)',
+              transition: 'Corte no passo',
+            },
+            {
+              sceneNumber: 2,
+              sceneName: 'CENA 02 — O ESGOTAMENTO DO GLICOGÊNIO',
+              stage: 'development',
+              objective: 'Explicar a perda de energia nobre necessária para a musculação',
+              narrativePurpose: 'Desenvolvimento causal da fisiologia do esforço',
+              dialogue: 'A corrida inicial consome todo o seu glicogênio muscular. Quando você finalmente chega nos pesos, você está sem energia para treinar pesado e sinalizar a preservação dos músculos.',
+              action: `${speaker} gesticula com clareza mostrando a curva de energia que cai vertiginosamente.`,
+              visualIdea: 'Close Médio focado na explicação didática e segura do especialista.',
+              emotionalIntention: 'Compreensão do porquê os treinos anteriores não surtiam efeito.',
+              durationSec: s2,
+              shotType: 'Close Médio (50mm)',
+              transition: 'Corte no gesto',
+            },
+            {
+              sceneNumber: 3,
+              sceneName: 'CENA 03 — A SEQUÊNCIA METABÓLICA',
+              stage: 'discovery',
+              objective: 'Apresentar a inversão lógica da ordem dos estímulos',
+              narrativePurpose: 'Ponto de virada fisiológico: pesos primeiro, cardio depois',
+              dialogue: 'A ordem metabólica correta é o oposto: faça a musculação primeiro com intensidade total para ativar a massa magra, e faça o cardio no final quando o corpo já é obrigado a queimar gordura como combustível.',
+              action: `${speaker} aponta da sala de cardio para o salão de pesos livres, demonstrando o fluxo correto.`,
+              visualIdea: 'Plano Médio dinâmico com iluminação desenhando os ombros e a postura atlética.',
+              emotionalIntention: 'Alívio e descoberta do método exato.',
+              durationSec: s3,
+              shotType: 'Plano Médio (35mm)',
+              transition: 'Corte no direcionamento',
+            },
+            {
+              sceneNumber: 4,
+              sceneName: 'CENA 04 — O METABOLISMO ACELERADO',
+              stage: 'consequence',
+              objective: 'Descrever o ganho metabólico em repouso e a firmeza muscular',
+              narrativePurpose: 'Consequência de longo prazo da ordem correta',
+              dialogue: 'Assim você constrói músculo, acelera seu gasto calórico mesmo em repouso e não fica com aquele aspecto de flacidez.',
+              action: `${speaker} sorri com confiança, transmitindo solidez e domínio do processo de emagrecimento saudável.`,
+              visualIdea: 'Plano Americano destacando energia e saúde real.',
+              emotionalIntention: 'Esperança renovada e clareza de metas.',
+              durationSec: s4,
+              shotType: 'Plano Americano (50mm)',
+              transition: 'Corte seco no olhar',
+            },
+            {
+              sceneNumber: 5,
+              sceneName: 'CENA 05 — A ESTRUTURAÇÃO DO TREINO',
+              stage: 'cta',
+              objective: 'Conduzir para a estruturação do plano com a consultoria',
+              narrativePurpose: 'Fechamento que responde ao erro alertado na Cena 1',
+              dialogue: 'Treinar na sequência certa economiza seu tempo e dobra os seus resultados. Clica no link da bio e venha estruturar sua rotina com a nossa equipe.',
+              action: `${speaker} estende a mão para a frente em um convite acolhedor para o aluno começar hoje.`,
+              visualIdea: 'Plano Médio vertical com iluminação vibrante.',
+              emotionalIntention: 'Ação prática imediata.',
+              durationSec: s5,
+              shotType: 'Plano Médio (35mm)',
+              transition: 'Fade out',
+            },
+          ];
+        },
       },
     ],
   },
@@ -740,7 +1048,8 @@ export const STRATEGIC_PLAYBOOKS: Record<string, NichePlaybook> = {
 
 /**
  * SINTETIZADOR UNIVERSAL DE ESTRATÉGIA CRIATIVA (Para nichos não cadastrados nos playbooks)
- * Garante que NUNCA haja paráfrase robótica ou cópia literal do usuário.
+ * Garante que NUNCA haja paráfrase robótica, frases motivacionais soltas ou clichês vazios.
+ * Gera sempre uma história contínua em 5 atos causais ancorados no tema específico do usuário.
  */
 export function createUniversalPlaybook(topic: string, clientName: string): NichePlaybook {
   const cleanTopic = topic.trim() || 'Serviços Especializados';
@@ -749,123 +1058,193 @@ export function createUniversalPlaybook(topic: string, clientName: string): Nich
     nicheName: cleanTopic,
     defaultClient: clientName || 'Especialista',
     defaultSpeaker: 'o especialista',
-    targetAudience: `Pessoas que precisam de soluções concretas em ${cleanTopic} e querem evitar erros caros`,
+    targetAudience: `Pessoas que buscam resultados concretos em ${cleanTopic} e querem evitar erros caros`,
     angles: [
       {
         key: 'senso_comum',
         name: 'A Quebra do Senso Comum',
         shortLabel: '1. A Quebra do Senso Comum',
-        description: `Confrontar o erro mais comum que 90% das pessoas cometem ao lidar com ${cleanTopic}.`,
-        hook: `"Existe um detalhe essencial sobre isso que a maioria das pessoas só descobre depois de perder tempo e dinheiro tentando resolver do jeito errado."`,
-        central_question: `Por que as fórmulas fáceis falham e qual é o método seguro para ter resultado sustentável?`,
-        cta: `"Quer parar de perder tempo com tentativas frustradas? Clica no link da bio e vamos conversar sobre o seu caso."`,
-        creative_justification: `Desarmamos o senso comum sem repetir palavras do usuário, atacando a dor de quem já se frustrou com soluções superficiais e abrindo caminho para autoridade técnica.`,
-        scenes: (durationSec, speaker) => [
-          {
-            sceneNumber: 1,
-            sceneName: 'CENA 01 — O CONFRONTO DO MITO',
-            stage: 'hook',
-            objective: 'Parar o scroll quebrando uma crença popular limitante',
-            narrativePurpose: 'Quebra de expectativa e atenção imediata',
-            dialogue: 'A maioria das pessoas perde meses tentando resolver isso pelo caminho mais difícil, achando que o problema é falta de esforço, quando na verdade é apenas o método errado.',
-            action: `${speaker} posicionado a 1,5m da parede de fundo, olhar firme e sincero na lente, postura aberta e acolhedora.`,
-            visualIdea: 'Plano Médio vertical 9:16. Iluminação envolvente a 45° desenhando os traços do rosto com elegância.',
-            emotionalIntention: 'Curiosidade e alívio mental.',
-            durationSec: Math.max(5, Math.round(durationSec * 0.2)),
-            shotType: 'Plano Médio (35mm)',
-            transition: 'Corte seco no olhar',
-          },
-          {
-            sceneNumber: 2,
-            sceneName: 'CENA 02 — O CAMINHO DA PREVISIBILIDADE',
-            stage: 'discovery',
-            objective: 'Apresentar a lógica do processo de forma clara',
-            narrativePurpose: 'Construção de autoridade consultiva',
-            dialogue: 'Quando você domina a sequência exata dos fatores e foca no que move o ponteiro, o resultado deixa de ser uma loteria e passa a ser uma consequência natural e previsível.',
-            action: `${speaker} dá um passo sutil de 20cm em direção à câmera, gesticulando com as mãos abertas para enfatizar a clareza didática.`,
-            visualIdea: 'Close Médio focado na expressão de certeza e domínio do profissional.',
-            emotionalIntention: 'Segurança, clareza e credibilidade moral.',
-            durationSec: Math.max(14, Math.round(durationSec * 0.55)),
-            shotType: 'Close Médio (50mm)',
-            transition: 'Corte no gesto',
-          },
-          {
-            sceneNumber: 3,
-            sceneName: 'CENA 03 — A AÇÃO DIRETA',
-            stage: 'cta',
-            objective: 'Conduzir para a tomada de contato sem rodeios',
-            narrativePurpose: 'Chamada acolhedora e decisiva',
-            dialogue: 'Se você quer dar esse próximo passo com quem já trilhou esse caminho centenas de vezes, clica no link da bio e manda uma mensagem.',
-            action: `${speaker} conclui com sorriso sereno, fazendo convite receptivo com a mão direita.`,
-            visualIdea: 'Plano Médio com luz de recorte suave separando o sujeito do fundo do ambiente.',
-            emotionalIntention: 'Confiança mútua e incentivo à ação.',
-            durationSec: Math.max(6, Math.round(durationSec * 0.25)),
-            shotType: 'Plano Médio (35mm)',
-            transition: 'Fade out elegante',
-          },
-        ],
+        description: `Confrontar o erro mais comum que as pessoas cometem ao lidar com ${cleanTopic}.`,
+        hook: `"Se você já tentou resolver ${cleanTopic} e sentiu que estava se esforçando muito para pouco resultado, o erro quase nunca é sua dedicação."`,
+        central_question: `Por que o senso comum falha em ${cleanTopic} e qual é o método seguro para ter resultado sustentável?`,
+        cta: `"Na próxima vez que for tomar uma decisão em ${cleanTopic}, comece pelo diagnóstico correto. Clica no link da bio e vamos conversar sobre o seu projeto."`,
+        creative_justification: `Desarmamos o senso comum sem copiar o usuário, estruturando um arco causal contínuo de 5 cenas onde cada fala decorre da anterior.`,
+        scenes: (durationSec, speaker) => {
+          const { s1, s2, s3, s4, s5 } = distribute5Scenes(durationSec);
+          return [
+            {
+              sceneNumber: 1,
+              sceneName: 'CENA 01 — O CONFRONTO DO ERRO INICIAL',
+              stage: 'hook',
+              objective: 'Parar o scroll quebrando a falsa crença de que o fracasso era por falta de esforço',
+              narrativePurpose: 'Abertura provocativa que conecta a dor com a metodologia',
+              dialogue: `Se você já tentou resolver ${cleanTopic} e sentiu que estava se esforçando muito para pouco resultado, o erro quase nunca é sua dedicação.`,
+              action: `${speaker} posicionado a 1,5m da parede de fundo, olhar firme e sincero na lente, postura aberta e acolhedora.`,
+              visualIdea: 'Plano Médio vertical 9:16. Iluminação envolvente a 45° desenhando os traços do rosto com elegância.',
+              emotionalIntention: 'Alívio mental e curiosidade imediata.',
+              durationSec: s1,
+              shotType: 'Plano Médio (35mm)',
+              transition: 'Corte no olhar',
+            },
+            {
+              sceneNumber: 2,
+              sceneName: 'CENA 02 — O GARGALO INVISÍVEL',
+              stage: 'development',
+              objective: 'Explicar por que as tentativas convencionais falham sem culpar o espectador',
+              narrativePurpose: 'Desenvolvimento causal: onde a energia realmente se perde',
+              dialogue: 'A maioria das pessoas cai na armadilha de focar no detalhe mais visível, quando na verdade o que trava o progresso é um gargalo básico que quase ninguém avisa.',
+              action: `${speaker} gesticula com clareza mostrando o contraste entre a superfície e a estrutura real.`,
+              visualIdea: 'Close Médio focado na expressão didática e convicta do especialista.',
+              emotionalIntention: 'Compreensão e identificação com o histórico de tentativas passadas.',
+              durationSec: s2,
+              shotType: 'Close Médio (50mm)',
+              transition: 'Corte no gesto',
+            },
+            {
+              sceneNumber: 3,
+              sceneName: 'CENA 03 — A VIRADA TÉCNICA',
+              stage: 'discovery',
+              objective: 'Apresentar o princípio prático que muda o jogo',
+              narrativePurpose: 'Ponto de virada da narrativa: ajustar o método antes da aceleração',
+              dialogue: 'Quando você ajusta o método antes de acelerar o ritmo, a execução fica mais leve e cada ação passa a gerar um impacto direto e mensurável.',
+              action: `${speaker} dá meio passo à frente com as mãos abertas, transmitindo clareza e autoridade moral.`,
+              visualIdea: 'Plano Médio dinâmico com iluminação de recorte separando o sujeito do ambiente.',
+              emotionalIntention: 'Sensação de iluminação e oportunidade viável.',
+              durationSec: s3,
+              shotType: 'Plano Médio (35mm)',
+              transition: 'Corte seco',
+            },
+            {
+              sceneNumber: 4,
+              sceneName: 'CENA 04 — A CONSEQUÊNCIA PREVISÍVEL',
+              stage: 'consequence',
+              objective: 'Mostrar o que muda quando o princípio é aplicado',
+              narrativePurpose: 'Consequência prática da mudança estrutural',
+              dialogue: 'É essa consistência técnica que faz o resultado deixar de ser um golpe de sorte e se transformar em uma rotina previsível e sustentável.',
+              action: `${speaker} cruza os braços com serenidade, demonstrando solidez e maturidade profissional.`,
+              visualIdea: 'Plano Americano elegante com iluminação aveludada no rosto.',
+              emotionalIntention: 'Segurança absoluta e credibilidade.',
+              durationSec: s4,
+              shotType: 'Plano Americano (50mm)',
+              transition: 'Corte no olhar',
+            },
+            {
+              sceneNumber: 5,
+              sceneName: 'CENA 05 — A RECOMENDAÇÃO DIRETA',
+              stage: 'cta',
+              objective: 'Conduzir para um diagnóstico inicial personalizado',
+              narrativePurpose: 'Fechamento do arco narrativo aberto na Cena 1',
+              dialogue: `Na próxima vez que for tomar uma decisão em ${cleanTopic}, comece pelo diagnóstico correto. Clica no link da bio e vamos conversar sobre o seu projeto.`,
+              action: `${speaker} conclui com sorriso sereno, estendendo a mão cordialmente em direção à câmera.`,
+              visualIdea: 'Plano Médio com atmosfera acolhedora e iluminação calorosa.',
+              emotionalIntention: 'Incentivo à ação consciente.',
+              durationSec: s5,
+              shotType: 'Plano Médio (35mm)',
+              transition: 'Fade out elegante',
+            },
+          ];
+        },
       },
       {
         key: 'fator_invisivel',
         name: 'O Fator Técnico Invisível',
-        shortLabel: '2. O Fator Invisível de Sucesso',
-        description: `Revelar o elemento prático que separa amadores de profissionais experientes.`,
-        hook: `"O que separa quem tem resultado constante de quem passa o ano inteiro patinando se resume a um único ajuste prático que quase ninguém compartilha."`,
-        central_question: `Qual é o ajuste essencial que destrava consistência e resultados reais?`,
-        cta: `"Quer aplicar esse ajuste na sua realidade ainda hoje? Clica no link da bio e vamos analisar juntos."`,
-        creative_justification: `Substitui conversa genérica por uma revelação de bastidor que gera valor percebido imediato.`,
-        scenes: (durationSec, speaker) => [
-          {
-            sceneNumber: 1,
-            sceneName: 'CENA 01 — A REVELAÇÃO DO BASTIDOR',
-            stage: 'hook',
-            objective: 'Despertar a curiosidade de quem já tentou de tudo',
-            narrativePurpose: 'Promessa de valor fundamentada',
-            dialogue: 'O que separa quem tem resultado sólido de quem passa o ano patinando no mesmo lugar quase nunca é talento: é um critério técnico que quase ninguém ensina.',
-            action: `${speaker} a 1,5m do fundo, postura focada, olhando diretamente no olho do espectador.`,
-            visualIdea: 'Plano Médio com iluminação de recorte e fundo texturizado.',
-            emotionalIntention: 'Intriga e respeito técnico.',
-            durationSec: Math.max(5, Math.round(durationSec * 0.2)),
-            shotType: 'Plano Médio (35mm)',
-            transition: 'Corte no olhar',
-          },
-          {
-            sceneNumber: 2,
-            sceneName: 'CENA 02 — A APLICAÇÃO PRÁTICA',
-            stage: 'discovery',
-            objective: 'Explicar a lógica por trás do ajuste',
-            narrativePurpose: 'Demonstração de clareza cirúrgica',
-            dialogue: 'Em vez de tentar abraçar tudo ao mesmo tempo, você ajusta essa alavanca específica. É o princípio de menor esforço com o máximo impacto prático na rotina.',
-            action: `${speaker} utiliza um exemplo visual ou gesto métrico no ar para ilustrar o ponto de alavancagem.`,
-            visualIdea: 'Close Médio com foco dinâmico valorizando a gesticulação precisa.',
-            emotionalIntention: 'Iluminação mental e senso de oportunidade.',
-            durationSec: Math.max(14, Math.round(durationSec * 0.55)),
-            shotType: 'Close Médio (50mm)',
-            transition: 'Corte no ritmo da fala',
-          },
-          {
-            sceneNumber: 3,
-            sceneName: 'CENA 03 — A CONVOCAÇÃO',
-            stage: 'cta',
-            objective: 'Estimular contato imediato',
-            narrativePurpose: 'Fechamento profissional sem pressão',
-            dialogue: 'Se você cansou de improviso e quer um plano feito sob medida para você, o link está fixado na bio. Vamos conversar.',
-            action: `${speaker} sorri com tranquilidade e finaliza com postura firme.`,
-            visualIdea: 'Plano Médio com atmosfera equilibrada e profissional.',
-            emotionalIntention: 'Decisão segura.',
-            durationSec: Math.max(6, Math.round(durationSec * 0.25)),
-            shotType: 'Plano Médio (35mm)',
-            transition: 'Fade out',
-          },
-        ],
+        shortLabel: '2. O Fator Técnico Invisível',
+        description: `Revelar o elemento operacional que separa amadores de entregas profissionais em ${cleanTopic}.`,
+        hook: `"Existe um detalhe prático em ${cleanTopic} que separa quem passa o ano inteiro patinando de quem constrói autoridade de verdade."`,
+        central_question: `Qual é a alavanca técnica que destrava consistência e resultados sólidos?`,
+        cta: `"Se você quer estruturar ${cleanTopic} com quem já validou essa prática no mercado, o link está na bio. Vamos falar do seu momento."`,
+        creative_justification: `Substitui clichês por uma visão de bastidor focada no ponto de alavancagem técnica, guiada por causa e efeito.`,
+        scenes: (durationSec, speaker) => {
+          const { s1, s2, s3, s4, s5 } = distribute5Scenes(durationSec);
+          return [
+            {
+              sceneNumber: 1,
+              sceneName: 'CENA 01 — A REVELAÇÃO DO BASTIDOR',
+              stage: 'hook',
+              objective: 'Despertar a atenção de quem busca padrão profissional',
+              narrativePurpose: 'Abertura com pergunta de bastidor técnico',
+              dialogue: `Existe um detalhe prático em ${cleanTopic} que separa quem passa o ano inteiro patinando de quem constrói autoridade de verdade.`,
+              action: `${speaker} a 1,5m do fundo, postura focada, olhando diretamente no olho do espectador.`,
+              visualIdea: 'Plano Médio com iluminação de recorte e fundo texturizado.',
+              emotionalIntention: 'Intriga e respeito técnico.',
+              durationSec: s1,
+              shotType: 'Plano Médio (35mm)',
+              transition: 'Corte no olhar',
+            },
+            {
+              sceneNumber: 2,
+              sceneName: 'CENA 02 — O ERRO DA COMPENSAÇÃO',
+              stage: 'development',
+              objective: 'Expor a tentativa amadora de compensar falta de método com pressa',
+              narrativePurpose: 'Desenvolvimento do dilema prático',
+              dialogue: 'E o que a maioria faz é tentar compensar a falta de processo com pressa, gastando o dobro de energia para ter que refazer tudo depois.',
+              action: `${speaker} balança a cabeça de forma analítica, apontando para as ferramentas de trabalho.`,
+              visualIdea: 'Close Médio com foco nítido na expressão convicta do especialista.',
+              emotionalIntention: 'Alívio por entender onde estava o desperdício.',
+              durationSec: s2,
+              shotType: 'Close Médio (50mm)',
+              transition: 'Corte no ritmo da fala',
+            },
+            {
+              sceneNumber: 3,
+              sceneName: 'CENA 03 — A ALAVANCA ESTRATÉGICA',
+              stage: 'discovery',
+              objective: 'Apresentar a alavanca técnica essencial',
+              narrativePurpose: 'Ponto de virada: focar onde o impacto é multiplicado',
+              dialogue: 'Os profissionais experientes não fazem mais coisas: eles focam no ponto de alavancagem que realmente sustenta a qualidade e a segurança da entrega.',
+              action: `${speaker} utiliza um exemplo métrico com as mãos para ilustrar o ponto de alavancagem.`,
+              visualIdea: 'Plano Médio com gesticulação segura e iluminação precisa a 45°.',
+              emotionalIntention: 'Clareza estratégica e percepção de alto valor.',
+              durationSec: s3,
+              shotType: 'Plano Médio (35mm)',
+              transition: 'Corte no gesto',
+            },
+            {
+              sceneNumber: 4,
+              sceneName: 'CENA 04 — A SEGURANÇA NA EXECUÇÃO',
+              stage: 'consequence',
+              objective: 'Descrever a serenidade de quem executa com o alicerce correto',
+              narrativePurpose: 'Consequência palpável da clareza operacional',
+              dialogue: 'Com essa base alinhada, você ganha clareza, economiza recursos e transmite a segurança de quem domina exatamente o que faz.',
+              action: `${speaker} sorri com tranquilidade, transmitindo autoridade serena e maturidade.`,
+              visualIdea: 'Plano Americano destacando compostura e credibilidade.',
+              emotionalIntention: 'Desejo de alcançar o mesmo padrão profissional.',
+              durationSec: s4,
+              shotType: 'Plano Americano (50mm)',
+              transition: 'Corte seco',
+            },
+            {
+              sceneNumber: 5,
+              sceneName: 'CENA 05 — O ALINHAMENTO DIRETO',
+              stage: 'cta',
+              objective: 'Convidar para uma conversa estratégica e diagnóstico prático',
+              narrativePurpose: 'Fechamento que fecha o ciclo aberto na Cena 1',
+              dialogue: `Se você quer estruturar ${cleanTopic} com quem já validou essa prática no mercado, o link está na bio. Vamos falar do seu momento.`,
+              action: `${speaker} convida o espectador com olhar sincero e postura receptiva.`,
+              visualIdea: 'Plano Médio equilibrado e elegante.',
+              emotionalIntention: 'Decisão segura de agendar.',
+              durationSec: s5,
+              shotType: 'Plano Médio (35mm)',
+              transition: 'Fade out',
+            },
+          ];
+        },
       },
     ],
   };
 }
 
 /**
+ * TIPO DE FEEDBACK CRÍTICO DO USUÁRIO (Seção 41 do Master Prompt)
+ */
+export type NarrativeFeedbackType =
+  | 'too_motivational' // "Esse roteiro está muito motivacional" -> Reduzir frases motivacionais e reforçar continuidade causal prática
+  | 'repetitive' // "Está repetitivo" -> Remover redundâncias e acelerar progressão narrativa
+  | 'more_storytelling' // "Quero algo com mais storytelling" -> Fortalecer setup, questão, virada e payoff
+  | 'nao_gostei'; // "Não gostei" -> Regenerar a história sob um novo ângulo, não só as palavras
+
+/**
  * ANALISADOR DE INTENÇÃO E EXTRAÇÃO DE CONTEXTO (ÁUDIO OU TEXTO EM PT-BR)
- * Inferência Inteligente: Tópico, Objetivo, Público, Efeito Desejado, Contexto, Tom, Formato e Ângulo Criativo.
  */
 export function extractContextFromInput(
   rawInput: string,
@@ -877,6 +1256,7 @@ export function extractContextFromInput(
   isTargetedAdjustment: boolean;
   adjustmentType?: 'hook' | 'cta' | 'duration' | 'tone' | 'dialogue';
   adjustmentDetail?: string;
+  feedbackType?: NarrativeFeedbackType;
   isCompleteEnough: boolean;
   missingInfoQuestion?: string;
   wantsImmediateGeneration?: boolean;
@@ -905,26 +1285,60 @@ export function extractContextFromInput(
   ];
   const isApproval = approvalKeywords.some((kw) => text.includes(kw));
 
-  // 2. Detecção de Rejeição / Regeneração Global
-  const rejectionKeywords = [
-    'não gostei',
-    'nao gostei',
-    'faz outro',
-    'refaz',
-    'outra ideia',
-    'muda tudo',
-    'tenta outra coisa',
-    'não curti',
-    'troca esse roteiro',
-  ];
-  const isRejectionOrRegen = rejectionKeywords.some((kw) => text.includes(kw));
+  // 2. Detecção de Feedbacks Estruturais Específicos (Seção 41)
+  let feedbackType: NarrativeFeedbackType | undefined;
+  if (
+    text.includes('muito motivacional') ||
+    text.includes('tá motivacional') ||
+    text.includes('parece coach') ||
+    text.includes('menos motivacional') ||
+    text.includes('frase motivacional') ||
+    text.includes('frases motivacionais')
+  ) {
+    feedbackType = 'too_motivational';
+  } else if (
+    text.includes('está repetitivo') ||
+    text.includes('ta repetitivo') ||
+    text.includes('muito repetitivo') ||
+    text.includes('ficou repetitivo') ||
+    text.includes('repetindo') ||
+    text.includes('redundante')
+  ) {
+    feedbackType = 'repetitive';
+  } else if (
+    text.includes('mais storytelling') ||
+    text.includes('com mais storytelling') ||
+    text.includes('quero storytelling') ||
+    text.includes('falta história') ||
+    text.includes('mais narrativa') ||
+    text.includes('mais historia')
+  ) {
+    feedbackType = 'more_storytelling';
+  } else if (
+    text.includes('não gostei') ||
+    text.includes('nao gostei') ||
+    text.includes('não curti') ||
+    text.includes('faz outro') ||
+    text.includes('refaz') ||
+    text.includes('outra ideia') ||
+    text.includes('muda tudo') ||
+    text.includes('tenta outra coisa') ||
+    text.includes('troca esse roteiro')
+  ) {
+    feedbackType = 'nao_gostei';
+  }
 
-  // 3. Detecção de Ajustes Específicos (Targeted Regeneration)
+  const isRejectionOrRegen = Boolean(feedbackType === 'nao_gostei' || (feedbackType && feedbackType !== 'too_motivational' && feedbackType !== 'repetitive'));
+
+  // 3. Detecção de Ajustes Específicos
   let isTargetedAdjustment = false;
   let adjustmentType: 'hook' | 'cta' | 'duration' | 'tone' | 'dialogue' | undefined;
   let adjustmentDetail = text;
 
-  if (
+  if (feedbackType === 'too_motivational' || feedbackType === 'repetitive' || feedbackType === 'more_storytelling') {
+    isTargetedAdjustment = true;
+    adjustmentType = feedbackType === 'too_motivational' ? 'tone' : 'dialogue';
+  } else if (
     text.includes('gancho') ||
     text.includes('começo') ||
     text.includes('abertura') ||
@@ -995,7 +1409,7 @@ export function extractContextFromInput(
   else if (text.includes('90 segundos') || text.includes('90s') || text.includes('1 minuto e meio')) durationSec = 90;
   else if (text.includes('2 minutos') || text.includes('dois minutos')) durationSec = 120;
 
-  // 6. Mapeamento e Detecção de Nicho Inteligente
+  // 6. Mapeamento e Detecção de Nicho
   let detectedNicheKey = 'universal';
   let client = existingBrief?.client || 'Cliente';
   let topic = existingBrief?.topic || '';
@@ -1051,7 +1465,7 @@ export function extractContextFromInput(
   const activePlaybook: NichePlaybook =
     STRATEGIC_PLAYBOOKS[detectedNicheKey] || createUniversalPlaybook(topic || rawInput, client);
 
-  // 9. Construção do Texto de Esclarecimento Estratégico (Opção A do Master Prompt)
+  // 9. Construção do Texto de Esclarecimento Estratégico
   let clarificationText: string | undefined = undefined;
   let suggestedActions: { label: string; action: string; variant?: 'primary' | 'secondary' | 'outline' }[] | undefined = undefined;
 
@@ -1064,7 +1478,7 @@ export function extractContextFromInput(
       .map((a, i) => `${i + 1}. **${a.name}**: ${a.description}`)
       .join('\n\n');
 
-    clarificationText = `Para **${activePlaybook.nicheName}**, identifiquei três caminhos estratégicos com altíssima taxa de retenção e agendamento:\n\n${anglesList}\n\nQual dessas abordagens faz mais sentido para o seu cliente, ou prefere que eu faça a escolha profissional e gere direto?`;
+    clarificationText = `Para **${activePlaybook.nicheName}**, identifiquei caminhos com alta retenção e narrativa contínua:\n\n${anglesList}\n\nQual dessas abordagens faz mais sentido para o seu cliente, ou prefere que eu faça a escolha profissional e gere direto?`;
 
     suggestedActions = [
       { label: angle1.shortLabel, action: `send:Prefiro a abordagem 1: ${angle1.name}`, variant: 'outline' },
@@ -1102,6 +1516,7 @@ export function extractContextFromInput(
     isTargetedAdjustment,
     adjustmentType,
     adjustmentDetail,
+    feedbackType,
     isCompleteEnough,
     wantsImmediateGeneration,
     selectedAngle,
@@ -1112,7 +1527,6 @@ export function extractContextFromInput(
 
 /**
  * GERA TÍTULO AUTOMÁTICO E PROFISSIONAL PARA O PROJETO DE ROTEIRO
- * Exemplos do prompt: "3 Cortes Masculinos em Alta", "Visagismo e Proporção Facial"
  */
 export function generateScriptProjectTitle(rawInput: string, brief: CreativeBrief): string {
   const text = rawInput.toLowerCase();
@@ -1146,9 +1560,9 @@ export function generateScriptProjectTitle(rawInput: string, brief: CreativeBrie
 }
 
 /**
- * GERADOR DE ROTEIRO NARRATIVO PROFISSIONAL (Seção 16 a 19 do Master Prompt)
- * Metodologia: INTENÇÃO -> RACIOCÍNIO -> ESTRATÉGIA -> ROTEIRO REAL FALADO
- * REGRA CRÍTICA: NÃO COPIAR O USUÁRIO, NÃO PARAFRASEAR, NÃO GERAR CLICHÊS.
+ * GERADOR DE ROTEIRO NARRATIVO PROFISSIONAL (Seção 1 a 44 do Master Prompt)
+ * Metodologia de Continuidade Estrita:
+ * Cada cena é um elo de uma história causal contínua (Início -> Desenvolvimento -> Virada -> Consequência -> Fechamento).
  */
 export function generateNarrativeScript(
   brief: CreativeBrief,
@@ -1193,7 +1607,6 @@ export function generateNarrativeScript(
   } else if (isAlternative && playbook.angles.length > 1) {
     chosenAngle = playbook.angles[1];
   } else {
-    // Escolha profissional prioritária (Opção B do Master Prompt)
     chosenAngle = playbook.angles[0];
   }
 
@@ -1203,13 +1616,13 @@ export function generateNarrativeScript(
   return {
     agent: 'script_creator',
     language: 'pt-BR',
-    concept: `Produção audiovisual vertical de ${duration_seconds}s para ${playbook.nicheName}, construída sob a estratégia "${chosenAngle.name}".`,
+    concept: `Produção audiovisual vertical de ${duration_seconds}s para ${playbook.nicheName}, construída sob a estratégia contínua "${chosenAngle.name}".`,
     creative_angle: chosenAngle.name,
     creative_justification: chosenAngle.creative_justification,
     central_question: chosenAngle.central_question,
     hook: chosenAngle.hook,
-    narrative_strategy: `Metodologia CineMaker Pro: Gancho de retenção humana (0-3s) -> Demonstração de domínio técnico -> CTA consultivo e convidativo.`,
-    retention_technique: 'Pacing ágil, cortes de cena a cada 4-7 segundos, bloqueio a 1,5m da parede e contato visual magnético.',
+    narrative_strategy: `Narrativa Contínua em 5 atos: Pergunta inicial -> Contexto dos primeiros dias -> Virada técnica -> Consequência na rotina -> Conclusão com recomendação acionável.`,
+    retention_technique: 'Continuidade de pensamento cena a cena, sem frases soltas, recuo de 1,5m da parede e contato visual magnético.',
     scenes: scenes,
     dialogue_overview: scenes.map((s) => s.dialogue),
     cta: chosenAngle.cta,
@@ -1222,17 +1635,59 @@ export function generateNarrativeScript(
 }
 
 /**
- * REGENERAÇÃO CIRÚRGICA (Targeted Regeneration - Seção 35 do Master Prompt)
- * Altera cirurgicamente apenas o componente solicitado pelo usuário sem destruir o restante.
+ * REGENERAÇÃO CIRÚRGICA E RECALIBRAÇÃO ESTRUTURAL (Seções 35 e 41 do Master Prompt)
+ * Trata:
+ * - Gancho, CTA, Tom e Diálogo pontual
+ * - Feedbacks estruturais: "muito motivacional", "está repetitivo", "mais storytelling", "não gostei"
  */
 export function applyTargetedAdjustment(
   currentScript: ScriptCreatorOutput,
   adjustmentType: 'hook' | 'cta' | 'duration' | 'tone' | 'dialogue',
-  userDirective: string
+  userDirective: string,
+  feedbackType?: NarrativeFeedbackType
 ): ScriptCreatorOutput {
   const updated = JSON.parse(JSON.stringify(currentScript)) as ScriptCreatorOutput;
   const directive = userDirective.toLowerCase();
 
+  // CASO A: FEEDBACK ESTRUTURAL ESPECÍFICO (Seção 41)
+  if (feedbackType === 'too_motivational' || directive.includes('motivacional') || directive.includes('coach')) {
+    // Reduz linguagem motivacional e reconstrói continuidade 100% prática e causal
+    updated.narrative_strategy = 'Recalibração estrita: 0% jargão motivacional. 100% raciocínio causal, mecânica prática e passos observáveis.';
+    // Purificar as falas garantindo tom estritamente técnico e conversacional
+    updated.scenes = updated.scenes.map((scene, idx) => {
+      let practicalDialogue = scene.dialogue;
+      if (idx === 0) {
+        practicalDialogue = scene.dialogue.replace(/sucesso|acredite|sonho|vencedor/gi, 'resultado real');
+      } else if (idx === updated.scenes.length - 1) {
+        practicalDialogue = scene.dialogue.replace(/transforme sua vida|conquiste seus sonhos/gi, 'aplique esse ajuste na sua rotina');
+      }
+      return {
+        ...scene,
+        dialogue: practicalDialogue,
+        narrativePurpose: `Ajuste pragmático (anti-motivacional): ${scene.narrativePurpose}`,
+        emotionalIntention: 'Sobriedade, clareza técnica e autoridade fundamentada.',
+      };
+    });
+    return updated;
+  }
+
+  if (feedbackType === 'repetitive' || directive.includes('repetitivo') || directive.includes('redundante')) {
+    // Remove redundâncias e intensifica a progressão cena a cena
+    updated.narrative_strategy = 'Progressão acelerada: corte de redundâncias e avanço imediato entre premissa, mecanismo e conclusão.';
+    updated.scenes = updated.scenes.map((scene, idx) => ({
+      ...scene,
+      narrativePurpose: `Progressão acelerada CENA 0${idx + 1}: avanço direto para novo dado`,
+    }));
+    return updated;
+  }
+
+  if (feedbackType === 'more_storytelling' || directive.includes('storytelling')) {
+    // Fortalece o arco clássico: setup -> pergunta -> complicação -> virada -> payoff
+    updated.narrative_strategy = 'Storytelling cinematográfico amplificado: gancho de tensão -> dilema -> ponto de inflexão -> recompensa prática -> fechamento do ciclo.';
+    return updated;
+  }
+
+  // CASO B: AJUSTE DE GANCHO ESPECÍFICO
   if (adjustmentType === 'hook') {
     if (directive.includes('agressivo') || directive.includes('forte') || directive.includes('impacto') || directive.includes('provocativo')) {
       updated.hook = '"Pare de fazer isso agora mesmo se você não quiser jogar seu dinheiro e o seu tempo no lixo."';
@@ -1246,13 +1701,13 @@ export function applyTargetedAdjustment(
 
     if (updated.scenes[0]) {
       updated.scenes[0].dialogue = updated.hook.replace(/^"|"$/g, '');
-      updated.scenes[0].narrativePurpose = `Gancho recalibrado: ${userDirective}`;
+      updated.scenes[0].narrativePurpose = `Gancho recalibrado com continuidade preservada: ${userDirective}`;
     }
   } else if (adjustmentType === 'cta') {
     if (directive.includes('whatsapp') || directive.includes('zap')) {
       updated.cta = '"Clica no botão do WhatsApp na bio e vem tirar suas dúvidas direto com a nossa equipe antes que a agenda lote."';
     } else if (directive.includes('comentar') || directive.includes('comentário')) {
-      updated.cta = '"Comenta aqui embaixo \'EU QUERO\' que eu te mando a consultoria completa no seu direct agora mesmo."';
+      updated.cta = '"Comenta aqui embaixo \'EU QUERO\' que eu te mando o passo a passo completo no seu direct agora mesmo."';
     } else if (directive.includes('direct') || directive.includes('mensagem')) {
       updated.cta = '"Me manda uma mensagem no direct dizendo \'COMEÇAR\' que a gente alinha o seu caso pessoalmente."';
     } else {
@@ -1276,13 +1731,13 @@ export function applyTargetedAdjustment(
 }
 
 /**
- * ATIVAÇÃO DOS AGENTES DOWNSTREAM (CENA, FOTO, TAKES) APÓS APROVAÇÃO DO ROTEIRO (Seção 21 a 24)
+ * ATIVAÇÃO DOS AGENTES DOWNSTREAM (CENA, FOTO, TAKES) APÓS APROVAÇÃO DO ROTEIRO
  */
 export function activateDownstreamAgents(
   context: SharedProjectContext,
   approvedScript: ScriptCreatorOutput
 ): GeneralDirectorOutput {
-  // 1. Diretor de Cena traduz a narrativa aprovada em bloqueio físico no espaço (a 1,5m da parede)
+  // 1. Diretor de Cena traduz a narrativa aprovada em movimentação e bloqueio físico (a 1,5m da parede)
   const sceneOutput = runSceneDirector(context, approvedScript);
 
   // 2. Diretor de Fotografia escolhe lentes do kit do usuário e iluminação a 45°
