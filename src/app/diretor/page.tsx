@@ -30,6 +30,8 @@ import {
   Plus,
   Pencil,
   Trash2,
+  Bookmark,
+  RotateCcw,
 } from 'lucide-react';
 import { useAppStore } from '@/lib/store/local-store';
 import {
@@ -46,18 +48,20 @@ import {
 import { GeneralDirectorOutput, ScriptCreatorOutput, SharedProjectContext } from '@/lib/ai/team-types';
 import { CustomLightingSetup } from '@/lib/ai/lighting-3d-types';
 import { generate3DLightingFromKit } from '@/lib/ai/lighting-presets';
-import { DirectorMode, VideoType } from '@/types/database';
+import { DirectorMode, VideoType, SavedScript } from '@/types/database';
 import { Studio3DLightingMap } from '@/components/director/Studio3DLightingMap';
 import { WhyModal } from '@/components/director/WhyModal';
 import { VoiceInput } from '@/components/director/VoiceInput';
 import { ScriptReviewCard } from '@/components/director/ScriptReviewCard';
 import { ScriptLibraryModal } from '@/components/director/ScriptLibraryModal';
+import { SaveScriptModal } from '@/components/director/SaveScriptModal';
 import { cn } from '@/lib/utils';
 
 function DirectorContent() {
   const searchParams = useSearchParams();
   const clientId = searchParams.get('client_id');
   const isQuick = searchParams.get('quick') === 'true';
+  const savedScriptIdParam = searchParams.get('saved_script_id');
 
   const {
     clients,
@@ -74,6 +78,16 @@ function DirectorContent() {
     renameScriptProject,
     deleteScriptProject,
     addScriptVersion,
+    savedScripts,
+    scriptFolders,
+    createScriptFolder,
+    renameScriptFolder,
+    deleteScriptFolder,
+    saveScript,
+    updateSavedScript,
+    duplicateSavedScript,
+    deleteSavedScript,
+    clearActiveConversation,
   } = useAppStore();
 
   const selectedClient = clients.find((c) => c.id === clientId) || clients[0];
@@ -123,7 +137,25 @@ function DirectorContent() {
   const [isLibraryOpen, setIsLibraryOpen] = useState(false);
   const [isRenaming, setIsRenaming] = useState(false);
   const [renameInput, setRenameInput] = useState('');
+  const [isSaveModalOpen, setIsSaveModalOpen] = useState(false);
+  const [activeSavedScriptId, setActiveSavedScriptId] = useState<string | null>(null);
+  const [confirmClearOpen, setConfirmClearOpen] = useState(false);
   const prevProjectIdRef = useRef<string | null>(null);
+
+  // Carregar roteiro salvo direto via URL se houver ?saved_script_id=...
+  useEffect(() => {
+    if (savedScriptIdParam && savedScripts.length > 0) {
+      const found = savedScripts.find((s) => s.id === savedScriptIdParam);
+      if (found) {
+        setActiveSavedScriptId(found.id);
+        setCurrentScript(found.script);
+        setCurrentBrief(found.brief || null);
+        setIsScriptApproved(true);
+        setStage('script_review');
+        setActiveTab('conversar');
+      }
+    }
+  }, [savedScriptIdParam, savedScripts]);
 
   // Auto-scroll do chat ao receber mensagens
   useEffect(() => {
@@ -236,8 +268,65 @@ function DirectorContent() {
   // NOVO PROJETO DE ROTEIRO (100% LIMPO, SEM MISTURAR COM O ANTERIOR)
   const handleNewScriptProject = () => {
     createScriptProject('Novo Roteiro', selectedClient?.id);
+    setActiveSavedScriptId(null);
     setActiveTab('conversar');
     setIsLibraryOpen(false);
+  };
+
+  // LIMPAR CONVERSA TEMPORÁRIA (REGRA CRÍTICA: NUNCA DELETA ROTEIROS SALVOS OU PASTAS)
+  const handleConfirmClearConversation = () => {
+    clearActiveConversation();
+    const initial = createInitialConversationState(selectedClient?.name);
+    setMessages(initial.messages);
+    setCurrentScript(null);
+    setCurrentBrief(null);
+    setIsScriptApproved(false);
+    setTeamOutput(null);
+    setCustom3DSetup(null);
+    setActiveSavedScriptId(null);
+    setStage('idle');
+    setConfirmClearOpen(false);
+  };
+
+  // ABRIR MODAL PARA SALVAR ROTEIRO PERMANENTE EM PASTA
+  const handleOpenSaveModal = () => {
+    if (!currentScript) return;
+    setIsSaveModalOpen(true);
+  };
+
+  // QUANDO O ROTEIRO FOR SALVO COM SUCESSO NA BIBLIOTECA
+  const handleSavedSuccess = (saved: SavedScript) => {
+    setActiveSavedScriptId(saved.id);
+    const saveFeedbackMsg: ChatMessage = {
+      id: `msg-${Date.now()}`,
+      sender: 'criador_roteiro',
+      senderTitle: 'Criador de Roteiro',
+      text: `✓ Roteiro "${saved.title}" salvo permanentemente na biblioteca! Ele está protegido em pasta e permanecerá intacto mesmo se você limpar esta conversa.`,
+      timestamp: new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
+      stage: 'script_review',
+    };
+    setMessages((prev) => [...prev, saveFeedbackMsg]);
+  };
+
+  // SELECIONAR ROTEIRO SALVO DA BIBLIOTECA PARA EDIÇÃO
+  const handleSelectSavedScript = (saved: SavedScript) => {
+    setActiveSavedScriptId(saved.id);
+    setCurrentScript(saved.script);
+    setCurrentBrief(saved.brief || null);
+    setIsScriptApproved(true);
+    setStage('script_review');
+    setActiveTab('conversar');
+
+    const loadMsg: ChatMessage = {
+      id: `msg-${Date.now()}`,
+      sender: 'criador_roteiro',
+      senderTitle: 'Criador de Roteiro',
+      text: `Carreguei o roteiro salvo "${saved.title}" da sua biblioteca para visualização e edição. Suas alterações serão salvas diretamente neste roteiro permanente.`,
+      timestamp: new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
+      stage: 'script_review',
+      script: saved.script,
+    };
+    setMessages([loadMsg]);
   };
 
   // ENVIAR MENSAGEM (TEXTO OU ÁUDIO FALADO PELO USUÁRIO)
@@ -484,9 +573,18 @@ function DirectorContent() {
     }, 250);
   };
 
-  // EDIÇÃO MANUAL DO ROTEIRO PELO USUÁRIO
+  // EDIÇÃO MANUAL DO ROTEIRO PELO USUÁRIO (PERSISTE NO BANCO PERMANENTE SE SALVO)
   const handleUpdateScript = (editedScript: ScriptCreatorOutput) => {
     setCurrentScript(editedScript);
+
+    // Se este roteiro já foi salvo como ativo permanente, persiste as alterações na biblioteca
+    if (activeSavedScriptId) {
+      updateSavedScript(activeSavedScriptId, {
+        script: editedScript,
+        brief: currentBrief,
+      });
+    }
+
     const editMsg: ChatMessage = {
       id: `msg-${Date.now()}`,
       sender: 'diretor_geral',
@@ -760,6 +858,29 @@ function DirectorContent() {
           {/* ABA 1: CONVERSA / ROTEIRO (MÁQUINA CONVERSACIONAL DE IA) */}
           {activeTab === 'conversar' && (
             <div className="space-y-4 animate-fade-in">
+              {/* CABEÇALHO DO CHAT COM CONTROLE DE LIMPEZA E STATUS */}
+              <div className="flex items-center justify-between pb-2.5 border-b border-white/[0.08] text-xs">
+                <div className="flex items-center gap-2">
+                  <span className="text-[11px] font-mono text-zinc-400">Conversa com Criador de Roteiro</span>
+                  {activeSavedScriptId && (
+                    <span className="bg-purple-500/20 text-purple-300 border border-purple-500/40 text-[10px] font-mono px-2 py-0.5 rounded-full flex items-center gap-1 font-semibold">
+                      <Bookmark className="w-2.5 h-2.5" />
+                      Roteiro Permanente Ativo
+                    </span>
+                  )}
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => setConfirmClearOpen(true)}
+                  className="py-1 px-2.5 rounded-lg bg-white/[0.04] hover:bg-red-500/15 text-zinc-400 hover:text-red-300 border border-white/10 hover:border-red-500/30 text-[11px] font-mono flex items-center gap-1.5 transition-colors"
+                  title="Limpar mensagens e rascunhos temporários da conversa atual"
+                >
+                  <RotateCcw className="w-3 h-3" />
+                  <span>Limpar conversa</span>
+                </button>
+              </div>
+
               {/* HISTÓRICO DE MENSAGENS CONVERSACIONAIS */}
               <div className="space-y-3 max-h-[350px] overflow-y-auto pr-1">
                 {messages.map((msg) => {
@@ -864,6 +985,8 @@ function DirectorContent() {
                     onRegenerate={handleRegenerateScript}
                     onUpdateScript={handleUpdateScript}
                     onRequestAdjustment={(prompt) => handleSendMessage(prompt)}
+                    onSaveToLibrary={handleOpenSaveModal}
+                    isSavedInLibrary={Boolean(activeSavedScriptId || savedScripts.some((s) => s.title === activeScriptProject?.title))}
                     versions={activeScriptProject?.versions || []}
                     currentVersionNumber={(activeScriptProject?.versions?.length || 0) + 1}
                     onSelectVersion={(versionScript) => setCurrentScript(versionScript)}
@@ -1295,19 +1418,82 @@ function DirectorContent() {
         </div>
       )}
 
-      {/* BIBLIOTECA DE ROTEIROS INDEPENDENTES ("MEUS ROTEIROS") */}
+      {/* MODAL DE CONFIRMAÇÃO PARA LIMPAR CONVERSA TEMPORÁRIA */}
+      {confirmClearOpen && (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-xs flex items-center justify-center p-4 animate-fade-in">
+          <div className="bg-[#111318] border border-amber-500/30 rounded-2xl max-w-sm w-full p-5 space-y-4 shadow-2xl text-center">
+            <div className="w-12 h-12 rounded-2xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-400 mx-auto">
+              <RotateCcw className="w-6 h-6" />
+            </div>
+            <div className="space-y-1">
+              <h3 className="text-sm font-bold text-white">Limpar conversa temporária?</h3>
+              <p className="text-xs text-zinc-400 leading-relaxed">
+                Isso limpará as mensagens e rascunhos desta conversa para começar uma nova ideia. <strong className="text-white">Seus roteiros e pastas salvos continuarão 100% protegidos na biblioteca.</strong>
+              </p>
+            </div>
+            <div className="grid grid-cols-2 gap-2 pt-1">
+              <button
+                type="button"
+                onClick={() => setConfirmClearOpen(false)}
+                className="py-2 px-3 rounded-xl border border-white/10 text-xs font-medium text-zinc-300 hover:bg-white/[0.06] transition-colors"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmClearConversation}
+                className="py-2 px-3 bg-amber-500 hover:bg-amber-400 text-zinc-950 text-xs font-bold rounded-xl shadow-lg transition-all active:scale-95"
+              >
+                Limpar Conversa
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL PARA SALVAR ROTEIRO EM PASTA DA BIBLIOTECA */}
+      {currentScript && (
+        <SaveScriptModal
+          isOpen={isSaveModalOpen}
+          onClose={() => setIsSaveModalOpen(false)}
+          currentScript={currentScript}
+          currentBrief={currentBrief}
+          initialTitle={activeScriptProject?.title || 'Novo Roteiro'}
+          defaultClientId={selectedClient?.id}
+          clients={clients}
+          scriptFolders={scriptFolders}
+          onCreateFolder={createScriptFolder}
+          onSaveScript={saveScript}
+          onSavedSuccess={handleSavedSuccess}
+        />
+      )}
+
+      {/* BIBLIOTECA DE ROTEIROS SALVOS & CONVERSAS */}
       <ScriptLibraryModal
         isOpen={isLibraryOpen}
         onClose={() => setIsLibraryOpen(false)}
+        savedScripts={savedScripts}
+        scriptFolders={scriptFolders}
+        clients={clients}
+        activeClientId={selectedClient?.id}
+        onSelectSavedScript={handleSelectSavedScript}
+        onRenameSavedScript={(id, newTitle) => updateSavedScript(id, { title: newTitle })}
+        onDuplicateSavedScript={duplicateSavedScript}
+        onDeleteSavedScript={deleteSavedScript}
+        onCreateFolder={createScriptFolder}
+        onRenameFolder={renameScriptFolder}
+        onDeleteFolder={deleteScriptFolder}
         scriptProjects={scriptProjects}
         activeProjectId={activeScriptProjectId}
         onSelectProject={(id) => {
+          setActiveSavedScriptId(null);
           selectScriptProject(id);
           setIsLibraryOpen(false);
         }}
         onCreateNewProject={handleNewScriptProject}
         onRenameProject={(id, newTitle) => renameScriptProject(id, newTitle)}
         onDeleteProject={(id) => deleteScriptProject(id)}
+        onClearConversation={handleConfirmClearConversation}
       />
     </div>
   );

@@ -22,11 +22,12 @@ import {
   Clock,
   ArrowRight,
   MessageCircle,
+  Folder,
 } from 'lucide-react';
 import { cn, formatDate } from '@/lib/utils';
 
 export default function ClientesPage() {
-  const { clients, addClient, updateClient, deleteClient } = useAppStore();
+  const { clients, addClient, updateClient, deleteClient, scriptFolders = [], savedScripts = [] } = useAppStore();
 
   const [activeTab, setActiveTab] = useState<ClientStatus | 'todos'>('todos');
   const [search, setSearch] = useState('');
@@ -424,6 +425,104 @@ export default function ClientesPage() {
                     </p>
                   </div>
                 )}
+
+                {/* Pastas & Roteiros Salvos */}
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-[10px] uppercase font-bold text-slate-500 block">
+                      Pastas & Roteiros Salvos
+                    </span>
+                    <Link
+                      href={`/diretor?client_id=${drawerClient.id}`}
+                      className="text-[11px] text-amber-400 hover:text-amber-300 font-medium flex items-center gap-1"
+                    >
+                      <span>Novo Roteiro</span>
+                      <ArrowRight className="w-3 h-3" />
+                    </Link>
+                  </div>
+
+                  {(() => {
+                    const clientFolders = scriptFolders.filter((f) => f.client_id === drawerClient.id);
+                    const clientScripts = savedScripts.filter((s) => s.client_id === drawerClient.id);
+
+                    if (clientFolders.length === 0 && clientScripts.length === 0) {
+                      return (
+                        <div className="p-3 bg-surface-raised/60 rounded-xl border border-surface-border text-center text-slate-400">
+                          <p className="text-[11px]">Nenhum roteiro salvo ainda para este cliente.</p>
+                          <Link
+                            href={`/diretor?client_id=${drawerClient.id}`}
+                            className="inline-flex items-center gap-1 text-xs text-amber-400 hover:underline mt-1 font-medium"
+                          >
+                            <FileText className="w-3 h-3" />
+                            <span>Criar primeiro roteiro com a IA</span>
+                          </Link>
+                        </div>
+                      );
+                    }
+
+                    return (
+                      <div className="space-y-2">
+                        {/* Folders */}
+                        {clientFolders.map((folder) => {
+                          const folderScripts = clientScripts.filter((s) => s.folder_id === folder.id);
+                          return (
+                            <div key={folder.id} className="p-2.5 bg-surface-raised rounded-xl border border-surface-border">
+                              <div className="flex items-center justify-between text-xs font-semibold text-slate-200 mb-1.5">
+                                <div className="flex items-center gap-1.5 truncate">
+                                  <Folder className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                                  <span className="truncate">{folder.name}</span>
+                                </div>
+                                <span className="text-[10px] text-slate-400 font-normal shrink-0">
+                                  {folderScripts.length} {folderScripts.length === 1 ? 'roteiro' : 'roteiros'}
+                                </span>
+                              </div>
+                              {folderScripts.length > 0 ? (
+                                <div className="space-y-1 pl-4 border-l border-surface-border mt-1">
+                                  {folderScripts.map((s) => (
+                                    <Link
+                                      key={s.id}
+                                      href={`/diretor?client_id=${drawerClient.id}&saved_script_id=${s.id}`}
+                                      className="flex items-center justify-between py-1 px-1.5 rounded-lg hover:bg-slate-800/80 text-[11px] text-slate-300 hover:text-white transition-colors"
+                                    >
+                                      <div className="flex items-center gap-1.5 truncate">
+                                        <FileText className="w-3 h-3 text-slate-400 shrink-0" />
+                                        <span className="truncate font-medium">{s.title}</span>
+                                      </div>
+                                      <span className="text-[9px] text-slate-500 font-mono shrink-0 ml-2">
+                                        v{s.version || s.versions?.length || 1}
+                                      </span>
+                                    </Link>
+                                  ))}
+                                </div>
+                              ) : (
+                                <p className="text-[10px] text-slate-500 italic pl-4">Pasta vazia</p>
+                              )}
+                            </div>
+                          );
+                        })}
+
+                        {/* Unfiled scripts */}
+                        {clientScripts
+                          .filter((s) => !s.folder_id || !clientFolders.some((f) => f.id === s.folder_id))
+                          .map((s) => (
+                            <Link
+                              key={s.id}
+                              href={`/diretor?client_id=${drawerClient.id}&saved_script_id=${s.id}`}
+                              className="flex items-center justify-between p-2.5 bg-surface-raised rounded-xl border border-surface-border hover:border-slate-600 transition-colors text-xs text-slate-200"
+                            >
+                              <div className="flex items-center gap-1.5 truncate">
+                                <FileText className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                                <span className="truncate font-medium">{s.title}</span>
+                              </div>
+                              <span className="text-[10px] text-slate-500 font-mono shrink-0 ml-2">
+                                v{s.version || s.versions?.length || 1}
+                              </span>
+                            </Link>
+                          ))}
+                      </div>
+                    );
+                  })()}
+                </div>
               </div>
             </div>
 

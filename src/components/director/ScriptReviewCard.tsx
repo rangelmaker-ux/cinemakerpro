@@ -13,6 +13,7 @@ import {
   Video,
   ChevronDown,
   ChevronUp,
+  Bookmark,
 } from 'lucide-react';
 import { ScriptCreatorOutput, ScriptScene } from '@/lib/ai/team-types';
 import { cn } from '@/lib/utils';
@@ -24,6 +25,8 @@ interface ScriptReviewCardProps {
   onRegenerate: () => void;
   onUpdateScript: (updatedScript: ScriptCreatorOutput) => void;
   onRequestAdjustment: (prompt: string) => void;
+  onSaveToLibrary?: () => void;
+  isSavedInLibrary?: boolean;
   versions?: { version: number; timestamp: string; script: any; note?: string }[];
   currentVersionNumber?: number;
   onSelectVersion?: (script: ScriptCreatorOutput) => void;
@@ -36,6 +39,8 @@ export function ScriptReviewCard({
   onRegenerate,
   onUpdateScript,
   onRequestAdjustment,
+  onSaveToLibrary,
+  isSavedInLibrary,
   versions = [],
   currentVersionNumber,
   onSelectVersion,
@@ -138,6 +143,23 @@ export function ScriptReviewCard({
 
         {/* CONTROLES RÁPIDOS DE MODO EDIÇÃO */}
         <div className="flex items-center gap-2 self-end sm:self-auto">
+          {onSaveToLibrary && (
+            <button
+              type="button"
+              onClick={onSaveToLibrary}
+              className={cn(
+                'py-1.5 px-3 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all shadow-sm active:scale-95',
+                isSavedInLibrary
+                  ? 'bg-purple-500/20 text-purple-300 border border-purple-500/40'
+                  : 'bg-purple-600 hover:bg-purple-500 text-white shadow-purple-900/20'
+              )}
+              title="Salvar este roteiro em pasta permanente da biblioteca"
+            >
+              <Bookmark className="w-3.5 h-3.5" />
+              <span>{isSavedInLibrary ? 'Salvo na Pasta ✓' : 'Salvar Roteiro'}</span>
+            </button>
+          )}
+
           {isEditMode ? (
             <button
               type="button"
@@ -329,6 +351,23 @@ export function ScriptReviewCard({
             <span>Regenerar Outra Ideia</span>
           </button>
         </div>
+
+        {/* BOTÃO SALVAR ROTEIRO NA PASTA DO CLIENTE */}
+        {onSaveToLibrary && (
+          <button
+            type="button"
+            onClick={onSaveToLibrary}
+            className={cn(
+              'w-full py-2.5 px-4 rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition-all shadow-md active:scale-98',
+              isSavedInLibrary
+                ? 'bg-purple-500/15 text-purple-300 border border-purple-500/40'
+                : 'bg-purple-600 hover:bg-purple-500 text-white shadow-purple-900/30'
+            )}
+          >
+            <Bookmark className="w-4 h-4" />
+            <span>{isSavedInLibrary ? 'Roteiro Salvo na Pasta do Cliente ✓' : 'Salvar Roteiro em Pasta do Cliente'}</span>
+          </button>
+        )}
 
         {/* AJUSTES RÁPIDOS CONVERSACIONAIS */}
         <div className="flex flex-wrap gap-1.5 pt-1">

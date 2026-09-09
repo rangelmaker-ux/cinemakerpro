@@ -13,6 +13,8 @@ import {
   SubscriptionTier,
   ScriptProject,
   ScriptVersionRecord,
+  ScriptFolder,
+  SavedScript,
 } from '@/types/database';
 import {
   INITIAL_CLIENTS,
@@ -43,10 +45,10 @@ interface AppStoreContextType {
   updateUserAccess: (
     userId: string,
     updates: { status?: UserStatus; is_paid?: boolean; subscription_tier?: SubscriptionTier }
-  ) => Promise<void>;
-  addEquipment: (eq: Omit<Equipment, 'id'>) => void;
+  ) => void;
+  addEquipment: (eq: Omit<Equipment, 'id'>) => Equipment;
   deleteEquipment: (id: string) => void;
-  addKit: (kit: Omit<Kit, 'id'>) => void;
+  addKit: (kit: Omit<Kit, 'id'>) => Kit;
   setDefaultKit: (id: string) => void;
   addClient: (cli: Omit<Client, 'id' | 'created_at'>) => Client;
   updateClient: (id: string, updated: Partial<Client>) => void;
@@ -65,6 +67,17 @@ interface AppStoreContextType {
   renameScriptProject: (id: string, newTitle: string) => void;
   deleteScriptProject: (id: string) => void;
   addScriptVersion: (id: string, script: any, note?: string) => void;
+  // Gestão de Pastas e Roteiros Salvos Permanentes
+  scriptFolders: ScriptFolder[];
+  savedScripts: SavedScript[];
+  createScriptFolder: (name: string, clientId: string) => ScriptFolder;
+  renameScriptFolder: (folderId: string, newName: string) => void;
+  deleteScriptFolder: (folderId: string, deleteScriptsInside?: boolean) => void;
+  saveScript: (data: { clientId: string; folderId?: string; title: string; script: any; brief?: any }) => SavedScript;
+  updateSavedScript: (id: string, updates: Partial<SavedScript>) => void;
+  duplicateSavedScript: (id: string) => SavedScript | null;
+  deleteSavedScript: (id: string) => void;
+  clearActiveConversation: () => void;
 }
 
 const AppStoreContext = createContext<AppStoreContextType | null>(null);
@@ -83,6 +96,8 @@ export function AppStoreProvider({ children }: { children: React.ReactNode }) {
   const [activeShootId, setActiveShootIdState] = useState<string>('');
   const [scriptProjects, setScriptProjects] = useState<ScriptProject[]>([]);
   const [activeScriptProjectId, setActiveScriptProjectId] = useState<string>('');
+  const [scriptFolders, setScriptFolders] = useState<ScriptFolder[]>([]);
+  const [savedScripts, setSavedScripts] = useState<SavedScript[]>([]);
   const [isLoaded, setIsLoaded] = useState(false);
 
   // 1. Carregar Sessão e Diretório de Usuários (100% Limpo sem mock data)
@@ -143,6 +158,8 @@ export function AppStoreProvider({ children }: { children: React.ReactNode }) {
         if (parsed.activeShootId) setActiveShootIdState(parsed.activeShootId);
         if (parsed.scriptProjects) setScriptProjects(parsed.scriptProjects);
         if (parsed.activeScriptProjectId) setActiveScriptProjectId(parsed.activeScriptProjectId);
+        if (parsed.scriptFolders) setScriptFolders(parsed.scriptFolders);
+        if (parsed.savedScripts) setSavedScripts(parsed.savedScripts);
       } else {
         setEquipments(INITIAL_EQUIPMENTS);
         setKits(INITIAL_KITS);
@@ -151,6 +168,8 @@ export function AppStoreProvider({ children }: { children: React.ReactNode }) {
         setShoots([]);
         setScriptProjects([]);
         setActiveScriptProjectId('');
+        setScriptFolders([]);
+        setSavedScripts([]);
       }
     } catch (e) {
       console.error('Erro ao carregar workspace:', e);
@@ -200,12 +219,14 @@ export function AppStoreProvider({ children }: { children: React.ReactNode }) {
           activeShootId,
           scriptProjects,
           activeScriptProjectId,
+          scriptFolders,
+          savedScripts,
         })
       );
     } catch (e) {
       console.error('Erro ao salvar workspace:', e);
     }
-  }, [user?.id, equipments, kits, clients, projects, shoots, activeShootId, scriptProjects, activeScriptProjectId, isLoaded]);
+  }, [user?.id, equipments, kits, clients, projects, shoots, activeShootId, scriptProjects, activeScriptProjectId, scriptFolders, savedScripts, isLoaded]);
 
   // 4. Salvar diretório de usuários
   const saveDirectory = (newDir: UserProfile[]) => {
@@ -414,18 +435,20 @@ export function AppStoreProvider({ children }: { children: React.ReactNode }) {
   };
 
   // Métodos de Equipamentos e Kits
-  const addEquipment = (eq: Omit<Equipment, 'id'>) => {
+  const addEquipment = (eq: Omit<Equipment, 'id'>): Equipment => {
     const newEq: Equipment = { ...eq, id: `eq-${Date.now()}`, user_id: user?.id };
     setEquipments((prev) => [...prev, newEq]);
+    return newEq;
   };
 
   const deleteEquipment = (id: string) => {
     setEquipments((prev) => prev.filter((e) => e.id !== id));
   };
 
-  const addKit = (kit: Omit<Kit, 'id'>) => {
+  const addKit = (kit: Omit<Kit, 'id'>): Kit => {
     const newKit: Kit = { ...kit, id: `kit-${Date.now()}`, user_id: user?.id };
     setKits((prev) => [...prev, newKit]);
+    return newKit;
   };
 
   const setDefaultKit = (id: string) => {
@@ -592,6 +615,158 @@ export function AppStoreProvider({ children }: { children: React.ReactNode }) {
     );
   };
 
+  // -------------------------------------------------------------
+  // MÓDULO DE PASTAS E ROTEIROS SALVOS PERMANENTES (SEPARAÇÃO DE CONVERSA TEMPORÁRIA)
+  // -------------------------------------------------------------
+  const createScriptFolder = (name: string, clientId: string): ScriptFolder => {
+    const newFolder: ScriptFolder = {
+      id: `folder_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+      user_id: user?.id,
+      client_id: clientId,
+      name: name.trim() || 'Nova Pasta',
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    };
+    setScriptFolders((prev) => [...prev, newFolder]);
+    return newFolder;
+  };
+
+  const renameScriptFolder = (folderId: string, newName: string) => {
+    if (!newName.trim()) return;
+    setScriptFolders((prev) =>
+      prev.map((f) =>
+        f.id === folderId ? { ...f, name: newName.trim(), updated_at: new Date().toISOString() } : f
+      )
+    );
+  };
+
+  const deleteScriptFolder = (folderId: string, deleteScriptsInside: boolean = false) => {
+    setScriptFolders((prev) => prev.filter((f) => f.id !== folderId));
+    if (deleteScriptsInside) {
+      setSavedScripts((prev) => prev.filter((s) => s.folder_id !== folderId));
+    } else {
+      setSavedScripts((prev) =>
+        prev.map((s) => (s.folder_id === folderId ? { ...s, folder_id: undefined } : s))
+      );
+    }
+  };
+
+  const saveScript = (data: {
+    clientId: string;
+    folderId?: string;
+    title: string;
+    script: any;
+    brief?: any;
+  }): SavedScript => {
+    const cleanTitle = data.title.trim() || 'Roteiro Salvo';
+    const newSaved: SavedScript = {
+      id: `saved_script_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+      user_id: user?.id,
+      client_id: data.clientId,
+      folder_id: data.folderId,
+      title: cleanTitle,
+      script: JSON.parse(JSON.stringify(data.script)),
+      brief: data.brief ? JSON.parse(JSON.stringify(data.brief)) : null,
+      versions: [
+        {
+          version: 1,
+          timestamp: new Date().toISOString(),
+          script: JSON.parse(JSON.stringify(data.script)),
+          note: 'Versão inicial salva na biblioteca',
+        },
+      ],
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    };
+
+    setSavedScripts((prev) => [newSaved, ...prev]);
+    return newSaved;
+  };
+
+  const updateSavedScript = (id: string, updates: Partial<SavedScript>) => {
+    setSavedScripts((prev) =>
+      prev.map((s) => {
+        if (s.id !== id) return s;
+        let updatedVersions = s.versions || [];
+        if (updates.script) {
+          const nextVerNum = (s.versions?.length || 1) + 1;
+          updatedVersions = [
+            ...updatedVersions,
+            {
+              version: nextVerNum,
+              timestamp: new Date().toISOString(),
+              script: JSON.parse(JSON.stringify(updates.script)),
+              note: `Versão ${nextVerNum} editada e salva`,
+            },
+          ];
+        }
+
+        return {
+          ...s,
+          ...updates,
+          versions: updatedVersions,
+          updated_at: new Date().toISOString(),
+        };
+      })
+    );
+  };
+
+  const duplicateSavedScript = (id: string): SavedScript | null => {
+    const original = savedScripts.find((s) => s.id === id);
+    if (!original) return null;
+
+    const duplicate: SavedScript = {
+      ...JSON.parse(JSON.stringify(original)),
+      id: `saved_script_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+      title: `${original.title} — versão 2`,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    };
+
+    setSavedScripts((prev) => [duplicate, ...prev]);
+    return duplicate;
+  };
+
+  const deleteSavedScript = (id: string) => {
+    setSavedScripts((prev) => prev.filter((s) => s.id !== id));
+  };
+
+  /**
+   * LIMPAR CONVERSA TEMPORÁRIA (REGRA CRÍTICA: NUNCA DELETA ROTEIROS OU PASTAS SALVOS)
+   */
+  const clearActiveConversation = () => {
+    if (!activeScriptProjectId) return;
+    setScriptProjects((prev) =>
+      prev.map((sp) => {
+        if (sp.id !== activeScriptProjectId) return sp;
+        return {
+          ...sp,
+          conversation: [
+            {
+              id: `msg-init-${Date.now()}`,
+              sender: 'criador_roteiro',
+              senderTitle: 'Criador de Roteiro',
+              text: 'Me conta o que você precisa gravar.',
+              timestamp: new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
+              stage: 'idle',
+              suggestedActions: [
+                { label: '🎙️ Falar por Áudio', action: 'start_audio', variant: 'primary' },
+                { label: 'Vídeo para barbearia com cortes em alta', action: 'example_barber', variant: 'outline' },
+                { label: 'Depoimento institucional de cliente', action: 'example_testimonial', variant: 'outline' },
+                { label: 'Apresentação comercial e vendas', action: 'example_sales', variant: 'outline' },
+              ],
+            },
+          ],
+          script: null,
+          brief: null,
+          stage: 'idle',
+          is_approved: false,
+          updated_at: new Date().toISOString(),
+        };
+      })
+    );
+  };
+
   const activeScriptProject = scriptProjects.find((sp) => sp.id === activeScriptProjectId) || null;
   const activeShoot = shoots.find((s) => s.id === activeShootId) || shoots[0] || null;
   const isAuthenticated = Boolean(user);
@@ -636,6 +811,16 @@ export function AppStoreProvider({ children }: { children: React.ReactNode }) {
         renameScriptProject,
         deleteScriptProject,
         addScriptVersion,
+        scriptFolders,
+        savedScripts,
+        createScriptFolder,
+        renameScriptFolder,
+        deleteScriptFolder,
+        saveScript,
+        updateSavedScript,
+        duplicateSavedScript,
+        deleteSavedScript,
+        clearActiveConversation,
       }}
     >
       {children}

@@ -130,3 +130,34 @@ export interface ScriptProject {
   user_edits?: Record<string, any>;
   is_approved: boolean;
 }
+
+/**
+ * PASTAS PERMANENTES DE ROTEIROS ASSOCIADAS A CLIENTES
+ */
+export interface ScriptFolder {
+  id: string;
+  user_id?: string;
+  client_id: string;
+  name: string;
+  created_at: string;
+  updated_at?: string;
+}
+
+/**
+ * ROTEIROS SALVOS PERMANENTES NA BIBLIOTECA (ATIVOS PROTEGER CONTRA 'LIMPAR CONVERSA')
+ */
+export interface SavedScript {
+  id: string;
+  user_id?: string;
+  client_id: string;
+  folder_id?: string;
+  title: string;
+  script: any;
+  brief?: any | null;
+  version?: number;
+  versions: ScriptVersionRecord[];
+  created_at: string;
+  updated_at: string;
+  user_edits?: Record<string, any>;
+}
+
