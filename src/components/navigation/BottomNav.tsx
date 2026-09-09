@@ -18,13 +18,12 @@ interface NavItem {
   href: string;
   label: string;
   icon: React.ElementType;
-  isCenter?: boolean;
 }
 
 const NAV_ITEMS: NavItem[] = [
   { id: 'inicio', href: '/', label: 'Início', icon: LayoutGrid },
   { id: 'diarias', href: '/gravacoes', label: 'Diárias', icon: Clapperboard },
-  { id: 'direcao', href: '/diretor', label: 'Direção', icon: Crosshair, isCenter: true },
+  { id: 'direcao', href: '/diretor', label: 'Direção', icon: Crosshair },
   { id: 'agenda', href: '/agenda', label: 'Agenda', icon: Calendar },
   { id: 'kits', href: '/equipamentos', label: 'Kits', icon: Layers },
   { id: 'clientes', href: '/clientes', label: 'Clientes', icon: Users },
@@ -261,49 +260,40 @@ export function BottomNav() {
                   </div>
                 )}
 
-                {/* Ícone / Botão */}
+                {/* Ícone / Botão — Dimensões e aparência de repouso rigorosamente iguais para todos os 6 itens */}
                 <div
                   className={cn(
-                    'relative flex items-center justify-center transition-all duration-200',
-                    item.isCenter
-                      ? 'w-11 h-11 rounded-full border shadow-xl'
-                      : 'w-8 h-8 rounded-xl',
-                    // Estilos normais e ativos
-                    item.isCenter
-                      ? isActive
-                        ? 'bg-amber-400 text-zinc-950 border-amber-300 shadow-amber-500/30'
-                        : 'bg-zinc-800 text-amber-400 border-amber-400/30 hover:border-amber-400/60 shadow-black/60'
-                      : isActive
-                      ? 'bg-white/[0.12] text-white'
+                    'w-8 h-8 rounded-xl relative flex items-center justify-center transition-colors duration-150',
+                    isActive
+                      ? 'bg-white/[0.08] text-white'
                       : 'text-zinc-400 hover:text-zinc-200',
-                    // Feedback visual de Confirmação por Dwell ou Swipe
-                    isConfirmed && 'ring-2 ring-amber-400 ring-offset-2 ring-offset-black scale-105'
+                    // Feedback visual durante confirmação de toque
+                    isConfirmed && 'ring-2 ring-amber-400 ring-offset-2 ring-offset-[#0a0c10]'
                   )}
                 >
                   <Icon
                     className={cn(
-                      item.isCenter ? 'w-5 h-5' : 'w-4 h-4',
-                      isActive ? 'stroke-[2.5]' : 'stroke-2'
+                      'w-4 h-4',
+                      isActive ? 'stroke-[2.2]' : 'stroke-[1.8]'
                     )}
                   />
 
-                  {/* Ponto indicador de rota ativa */}
-                  {isActive && !item.isCenter && (
-                    <span className="absolute -bottom-1 w-1 h-1 rounded-full bg-white shadow-sm" />
+                  {/* Ponto indicador sutil de rota ativa */}
+                  {isActive && (
+                    <span className="absolute -bottom-0.5 w-1 h-1 rounded-full bg-white/70 shadow-xs" />
                   )}
 
-                  {/* Ponto pulsante ao confirmar por dwell */}
+                  {/* Ponto pulsante ao confirmar por dwell durante o toque */}
                   {isHovered && isDwellConfirmed && (
                     <span className="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-amber-400 animate-ping" />
                   )}
                 </div>
 
-                {/* Rótulo de Texto com tipografia refinada */}
+                {/* Rótulo de Texto com tipografia uniforme e baseline idêntica */}
                 <span
                   className={cn(
-                    'text-[10px] font-mono tracking-tight mt-0.5 whitespace-nowrap leading-none transition-colors duration-200',
-                    item.isCenter && 'font-bold',
-                    isActive ? 'text-white font-semibold' : 'text-zinc-500',
+                    'text-[10px] font-mono tracking-tight mt-0.5 whitespace-nowrap leading-none transition-colors duration-150',
+                    isActive ? 'text-white font-medium' : 'text-zinc-500',
                     isConfirmed && 'text-amber-300 font-bold'
                   )}
                 >
