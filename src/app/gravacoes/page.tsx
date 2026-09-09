@@ -3,37 +3,97 @@
 import React, { useState } from 'react';
 import Link from 'next/link';
 import { useAppStore } from '@/lib/store/local-store';
-import { Video, Clock, MapPin, Briefcase, Plus, ArrowRight, CheckCircle2 } from 'lucide-react';
+import { Video, Clock, MapPin, Briefcase, Plus, ArrowRight, CheckCircle2, Calendar, RefreshCw } from 'lucide-react';
 import { cn, formatDate } from '@/lib/utils';
+import { GoogleCalendarSyncModal } from '@/components/calendar/GoogleCalendarSyncModal';
 
 export default function GravacoesPage() {
-  const { shoots, clients, kits } = useAppStore();
+  const { shoots, clients, kits, user } = useAppStore();
   const [tab, setTab] = useState<'proximas' | 'concluidas'>('proximas');
+  const [isCalendarModalOpen, setIsCalendarModalOpen] = useState(false);
+  const [syncingShootId, setSyncingShootId] = useState<string | null>(null);
+  const [syncSuccessMsg, setSyncSuccessMsg] = useState<string | null>(null);
 
   const filteredShoots = shoots.filter((s) =>
     tab === 'proximas' ? s.status !== 'concluido' : s.status === 'concluido'
   );
 
+  const handleSyncSingleShoot = async (shoot: any) => {
+    setSyncingShootId(shoot.id);
+    setSyncSuccessMsg(null);
+    try {
+      const res = await fetch('/api/calendar/events', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title: shoot.title || 'Diária de Gravação',
+          date: shoot.scheduled_at?.split('T')[0] || new Date().toISOString().split('T')[0],
+          startTime: '09:00',
+          durationMin: shoot.estimated_duration_min || 180,
+          location: shoot.location_address || '',
+          description: `Diária cadastrada no CineMaker Pro.`,
+        }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setSyncSuccessMsg(`Diária sincronizada com sucesso na sua Google Agenda!`);
+        setTimeout(() => setSyncSuccessMsg(null), 4000);
+      } else {
+        setIsCalendarModalOpen(true);
+      }
+    } catch (e) {
+      setIsCalendarModalOpen(true);
+    } finally {
+      setSyncingShootId(null);
+    }
+  };
+
   return (
     <div className="space-y-4 animate-fade-in pb-8">
-      <div className="flex items-center justify-between">
+      {syncSuccessMsg && (
+        <div className="p-3 bg-emerald-500/10 border border-emerald-500/25 rounded-xl flex items-center gap-2.5 text-xs text-emerald-300 animate-fade-in">
+          <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+          <span>{syncSuccessMsg}</span>
+        </div>
+      )}
+
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
           <h2 className="text-lg font-black tracking-tight text-white flex items-center gap-2">
             <Video className="w-5 h-5 text-brand-light" />
             <span>Minhas Gravações</span>
           </h2>
           <p className="text-[11px] text-slate-400">
-            Acompanhe diárias agendadas e preparação de set
+            Acompanhe diárias agendadas, equipamentos e sincronização com Google Calendar
           </p>
         </div>
 
-        <Link
-          href="/diretor"
-          className="py-2 px-3 bg-brand hover:bg-brand-hover text-white text-xs font-bold rounded-xl flex items-center gap-1.5 shadow-md shadow-brand/20 transition-transform active:scale-95"
-        >
-          <Plus className="w-4 h-4" />
-          <span>Nova Gravação</span>
-        </Link>
+        <div className="flex items-center gap-2">
+          {/* Botão Sincronizar Google Agenda */}
+          <button
+            type="button"
+            onClick={() => setIsCalendarModalOpen(true)}
+            className="py-2 px-3 bg-white/[0.04] hover:bg-white/[0.08] border border-white/10 text-xs font-semibold text-zinc-200 rounded-xl flex items-center gap-2 transition-colors shadow-sm"
+            title="Sincronizar com a Google Agenda"
+          >
+            <svg className="w-3.5 h-3.5" viewBox="0 0 24 24">
+              <path fill="#4285F4" d="M23.745 12.27c0-.7-.06-1.4-.19-2.07H12v4.51h6.6c-.29 1.52-1.14 2.82-2.4 3.68v3.05h3.88c2.27-2.09 3.66-5.17 3.66-9.17z"/>
+              <path fill="#34A853" d="M12 24c3.24 0 5.95-1.08 7.93-2.91l-3.88-3.05c-1.08.72-2.45 1.16-4.05 1.16-3.12 0-5.77-2.1-6.72-4.93H1.25v3.15C3.26 21.36 7.33 24 12 24z"/>
+              <path fill="#FBBC05" d="M5.28 14.27c-.25-.72-.38-1.49-.38-2.27s.13-1.55.38-2.27V6.58H1.25C.45 8.17 0 9.98 0 12s.45 3.83 1.25 5.42l4.03-3.15z"/>
+              <path fill="#EA4335" d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.42-3.42C17.95 1.19 15.24 0 12 0 7.33 0 3.26 2.64 1.25 6.58l4.03 3.15c.95-2.83 3.6-4.98 6.72-4.98z"/>
+            </svg>
+            <span>Google Agenda</span>
+            <div className={`w-1.5 h-1.5 rounded-full ${user?.google_calendar_connected ? 'bg-emerald-400' : 'bg-zinc-600'}`} />
+          </button>
+
+          <Link
+            href="/diretor"
+            className="py-2 px-3 bg-white text-zinc-950 hover:bg-zinc-200 text-xs font-bold rounded-xl flex items-center gap-1.5 shadow-md transition-transform active:scale-95"
+          >
+            <Plus className="w-4 h-4" />
+            <span>Nova Gravação</span>
+          </Link>
+        </div>
       </div>
 
       {/* Tabs */}
@@ -119,13 +179,26 @@ export default function GravacoesPage() {
                 </div>
               </div>
 
-              <Link
-                href="/diretor"
-                className="w-full py-2 bg-brand hover:bg-brand-hover text-white font-bold text-xs rounded-xl flex items-center justify-center gap-1.5 shadow-md shadow-brand/20 transition-all active:scale-95"
-              >
-                <span>Abrir no Diretor IA</span>
-                <ArrowRight className="w-3.5 h-3.5" />
-              </Link>
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => handleSyncSingleShoot(shoot)}
+                  disabled={syncingShootId === shoot.id}
+                  className="py-2 px-3 bg-white/[0.04] hover:bg-white/[0.08] border border-white/10 text-white font-medium text-xs rounded-xl flex items-center justify-center gap-1.5 transition-all active:scale-95 disabled:opacity-50"
+                  title="Enviar diária para a Google Agenda"
+                >
+                  <Calendar className="w-3.5 h-3.5 text-amber-400" />
+                  <span>{syncingShootId === shoot.id ? 'Sincronizando...' : 'Google Agenda'}</span>
+                </button>
+
+                <Link
+                  href="/diretor"
+                  className="py-2 px-3 bg-white text-zinc-950 hover:bg-zinc-200 font-bold text-xs rounded-xl flex items-center justify-center gap-1.5 shadow-sm transition-all active:scale-95"
+                >
+                  <span>Diretor IA</span>
+                  <ArrowRight className="w-3.5 h-3.5" />
+                </Link>
+              </div>
             </div>
           );
         })}
@@ -150,6 +223,11 @@ export default function GravacoesPage() {
           </Link>
         </div>
       )}
+
+      <GoogleCalendarSyncModal
+        isOpen={isCalendarModalOpen}
+        onClose={() => setIsCalendarModalOpen(false)}
+      />
     </div>
   );
 }

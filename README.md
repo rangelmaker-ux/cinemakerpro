@@ -66,10 +66,16 @@ Acesse: `http://localhost:3000`
 
 1. Acesse [vercel.com](https://vercel.com) e conecte sua conta do GitHub.
 2. Importe o repositório: `rangelmaker-ux/cinemakerpro`.
-3. Nas configurações de **Environment Variables**, adicione (opcionalmente):
-   - `NEXT_PUBLIC_SUPABASE_URL`
-   - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
-   - `GEMINI_API_KEY` (se desejar provedor externo)
+3. Nas configurações de **Environment Variables**, adicione:
+   - `NEXT_PUBLIC_SUPABASE_URL` (se estiver usando Supabase)
+   - `NEXT_PUBLIC_SUPABASE_ANON_KEY` (se estiver usando Supabase)
+   - `GOOGLE_CLIENT_ID` (obtido no Google Cloud Console para o Google Calendar)
+   - `GOOGLE_CLIENT_SECRET` (obtido no Google Cloud Console para o Google Calendar)
+   - `GEMINI_API_KEY` (opcional, para inteligência multimodal avançada)
+
+   > **Importante para o Google Agenda**: No Google Cloud Console (APIs & Credentials → OAuth 2.0 Client), em **Authorized redirect URIs**, adicione:
+   > - `https://cinemakerpro.vercel.app/api/auth/google/callback`
+   > - `http://localhost:3000/api/auth/google/callback`
 4. Clique em **Deploy**. O projeto estará no ar em menos de 2 minutos!
 
 ---

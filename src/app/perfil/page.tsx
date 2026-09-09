@@ -1,16 +1,29 @@
 'use client';
 
-import React, { useState } from 'react';
-import { useRouter } from 'next/navigation';
+import React, { useState, useEffect, Suspense } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useAppStore } from '@/lib/store/local-store';
-import { ShieldCheck, LogOut, Check, ExternalLink, Instagram } from 'lucide-react';
+import { ShieldCheck, LogOut, Check, ExternalLink, Instagram, CheckCircle2, AlertCircle } from 'lucide-react';
 import { GoogleCalendarSyncModal } from '@/components/calendar/GoogleCalendarSyncModal';
 import { cn } from '@/lib/utils';
 
-export default function PerfilPage() {
+function PerfilContent() {
   const router = useRouter();
-  const { user, isAdmin, signOut } = useAppStore();
+  const searchParams = useSearchParams();
+  const { user, isAdmin, signOut, setGoogleCalendarConnected } = useAppStore();
   const [isCalendarOpen, setIsCalendarOpen] = useState(false);
+
+  const googleConnected = searchParams.get('google_connected');
+  const googleError = searchParams.get('google_error');
+
+  useEffect(() => {
+    if (googleConnected === 'true') {
+      setGoogleCalendarConnected(true);
+      setIsCalendarOpen(true);
+    } else if (googleError) {
+      setIsCalendarOpen(true);
+    }
+  }, [googleConnected, googleError, setGoogleCalendarConnected]);
 
   const handleLogout = async () => {
     await signOut();
@@ -179,5 +192,19 @@ export default function PerfilPage() {
         onClose={() => setIsCalendarOpen(false)}
       />
     </>
+  );
+}
+
+export default function PerfilPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="p-8 text-center font-mono text-xs text-zinc-500">
+          Carregando perfil...
+        </div>
+      }
+    >
+      <PerfilContent />
+    </Suspense>
   );
 }
