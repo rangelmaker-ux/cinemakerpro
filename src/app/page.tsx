@@ -14,15 +14,18 @@ import {
   AlertCircle,
   CheckCircle2,
   RefreshCw,
+  Clapperboard,
 } from 'lucide-react';
 import { useAppStore } from '@/lib/store/local-store';
 import { GoogleCalendarSyncModal } from '@/components/calendar/GoogleCalendarSyncModal';
 
 export default function HomePage() {
-  const { clients, activeShoot, kits, user } = useAppStore();
+  const { clients, projects, activeShoot, kits, user } = useAppStore();
   const [isCalendarOpen, setIsCalendarOpen] = useState(false);
 
   const defaultKit = kits.find((k) => k.is_default) || kits[0];
+  const activeProject = projects.find((p) => p.id === activeShoot?.project_id);
+  const activeClient = clients.find((c) => c.id === activeProject?.client_id);
 
   const leadsCount = clients.filter((c) => c.status === 'lead').length;
   const orcamentosCount = clients.filter((c) => c.status === 'orcamento').length;
@@ -72,7 +75,7 @@ export default function HomePage() {
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
           {/* Diária Imediata & Checklist do Set (7 colunas) */}
           <div className="lg:col-span-7 space-y-4">
-            {activeShoot && (
+            {activeShoot ? (
               <div className="bg-[#111318] border border-white/[0.08] rounded-2xl p-6 space-y-4">
                 <div className="flex items-center justify-between pb-3 border-b border-white/[0.06]">
                   <div className="flex items-center gap-2">
@@ -82,18 +85,18 @@ export default function HomePage() {
                     </span>
                   </div>
                   <span className="text-xs font-mono font-semibold text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2.5 py-0.5 rounded-full">
-                    Hoje • 14:00
+                    Agendada
                   </span>
                 </div>
 
                 <div>
                   <h3 className="text-base font-semibold text-white">
-                    DF Móveis — Vídeo Institucional Linha 2026
+                    {activeProject?.title || activeClient?.name || 'Diária de Gravação'}
                   </h3>
                   <div className="flex flex-wrap gap-4 text-xs text-zinc-400 mt-2 font-mono">
                     <div className="flex items-center gap-1.5">
                       <Clock className="w-3.5 h-3.5 text-zinc-500" />
-                      <span>2h previstas</span>
+                      <span>{activeShoot.estimated_duration_min || 120}min previstos</span>
                     </div>
                     {activeShoot.location_address && (
                       <div className="flex items-center gap-1.5">
@@ -103,7 +106,7 @@ export default function HomePage() {
                     )}
                     <div className="flex items-center gap-1.5">
                       <Layers className="w-3.5 h-3.5 text-zinc-500" />
-                      <span>Kit: {defaultKit?.name || 'Comercial'}</span>
+                      <span>Kit: {defaultKit?.name || 'Padrão'}</span>
                     </div>
                   </div>
                 </div>
@@ -123,7 +126,7 @@ export default function HomePage() {
                       style={{
                         width: `${Math.round(
                           (activeShoot.checklist_state.filter((c) => c.done).length /
-                            activeShoot.checklist_state.length) *
+                            (activeShoot.checklist_state.length || 1)) *
                             100
                         )}%`,
                       }}
@@ -148,18 +151,50 @@ export default function HomePage() {
                   </Link>
                 </div>
               </div>
+            ) : (
+              <div className="bg-[#111318] border border-white/[0.08] rounded-2xl p-6 sm:p-8 space-y-4 text-center">
+                <div className="w-12 h-12 rounded-2xl bg-white/[0.04] border border-white/10 flex items-center justify-center mx-auto text-zinc-400">
+                  <Clapperboard className="w-6 h-6 text-zinc-300" />
+                </div>
+                <div className="space-y-1">
+                  <h3 className="text-sm font-semibold text-white">
+                    Nenhuma diária agendada no momento
+                  </h3>
+                  <p className="text-xs text-zinc-400 max-w-sm mx-auto leading-relaxed">
+                    Seu cronograma está livre. Cadastre um novo cliente no CRM ou use o Diretor Técnico para escanear a iluminação do seu próximo set.
+                  </p>
+                </div>
+                <div className="flex flex-wrap items-center justify-center gap-2.5 pt-2">
+                  <Link
+                    href="/diretor"
+                    className="py-2.5 px-4 bg-white text-zinc-950 hover:bg-zinc-200 text-xs font-semibold rounded-xl flex items-center gap-1.5 transition-colors"
+                  >
+                    <Crosshair className="w-3.5 h-3.5 text-zinc-950" />
+                    <span>Novo Escaneamento IA</span>
+                  </Link>
+                  <Link
+                    href="/clientes"
+                    className="py-2.5 px-4 bg-white/[0.05] hover:bg-white/[0.09] text-zinc-300 text-xs font-medium rounded-xl border border-white/10 flex items-center gap-1.5 transition-colors"
+                  >
+                    <Users className="w-3.5 h-3.5 text-zinc-400" />
+                    <span>Cadastrar Cliente</span>
+                  </Link>
+                </div>
+              </div>
             )}
 
-            {/* Alerta de Logística / Deslocamento */}
-            <div className="p-3.5 bg-amber-500/[0.04] border border-amber-500/20 rounded-xl flex items-start gap-3 text-xs text-zinc-300">
-              <AlertCircle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
-              <div>
-                <span className="font-semibold text-amber-400 block mb-0.5">
-                  Previsão de Deslocamento
-                </span>
-                Tempo estimado até o endereço do cliente: 35 minutos no trânsito atual.
+            {/* Alerta de Logística / Deslocamento se houver endereço */}
+            {activeShoot?.location_address && (
+              <div className="p-3.5 bg-amber-500/[0.04] border border-amber-500/20 rounded-xl flex items-start gap-3 text-xs text-zinc-300">
+                <AlertCircle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+                <div>
+                  <span className="font-semibold text-amber-400 block mb-0.5">
+                    Previsão de Deslocamento
+                  </span>
+                  Endereço do set: {activeShoot.location_address}. Verifique o trânsito com antecedência.
+                </div>
               </div>
-            </div>
+            )}
           </div>
 
           {/* CRM & Google Calendar Widget (5 colunas) */}

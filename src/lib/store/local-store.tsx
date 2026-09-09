@@ -57,8 +57,8 @@ interface AppStoreContextType {
 
 const AppStoreContext = createContext<AppStoreContextType | null>(null);
 
-const SESSION_KEY = 'cinemakerpro_active_session_v1';
-const DIRECTORY_KEY = 'cinemakerpro_users_directory_v1';
+const SESSION_KEY = 'cinemakerpro_active_session_prod';
+const DIRECTORY_KEY = 'cinemakerpro_users_directory_prod';
 
 export function AppStoreProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<UserProfile | null>(INITIAL_USER);
@@ -68,16 +68,27 @@ export function AppStoreProvider({ children }: { children: React.ReactNode }) {
   const [clients, setClients] = useState<Client[]>(INITIAL_CLIENTS);
   const [projects, setProjects] = useState<Project[]>(INITIAL_PROJECTS);
   const [shoots, setShoots] = useState<Shoot[]>(INITIAL_SHOOTS);
-  const [activeShootId, setActiveShootIdState] = useState<string>(INITIAL_SHOOTS[0]?.id || '');
+  const [activeShootId, setActiveShootIdState] = useState<string>('');
   const [isLoaded, setIsLoaded] = useState(false);
 
-  // 1. Carregar Sessão e Diretório de Usuários
+  // 1. Carregar Sessão e Diretório de Usuários (100% Limpo sem mock data)
   useEffect(() => {
     try {
       const savedDir = localStorage.getItem(DIRECTORY_KEY);
       let directory = INITIAL_USERS_DIRECTORY;
       if (savedDir) {
-        directory = JSON.parse(savedDir);
+        const parsed: UserProfile[] = JSON.parse(savedDir);
+        // Remove quaisquer usuários de teste anteriores
+        directory = parsed.filter(
+          (u) =>
+            !['lucas.filmes@gmail.com', 'mari.videomaker@outlook.com', 'thiago.cinema@gmail.com'].includes(
+              u.email.toLowerCase()
+            )
+        );
+        // Garante que o admin oficial sempre exista
+        if (!directory.some((u) => u.email === 'rangelmaker@gmail.com')) {
+          directory = [INITIAL_USER, ...directory];
+        }
         setUsersDirectory(directory);
       }
 
@@ -101,7 +112,7 @@ export function AppStoreProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (!user) return;
 
-    const userStorageKey = `cinemakerpro_workspace_${user.id}`;
+    const userStorageKey = `cinemakerpro_workspace_prod_${user.id}`;
     try {
       const savedWorkspace = localStorage.getItem(userStorageKey);
       if (savedWorkspace) {
@@ -113,19 +124,11 @@ export function AppStoreProvider({ children }: { children: React.ReactNode }) {
         if (parsed.shoots) setShoots(parsed.shoots);
         if (parsed.activeShootId) setActiveShootIdState(parsed.activeShootId);
       } else {
-        if (user.email === 'rangelmaker@gmail.com') {
-          setEquipments(INITIAL_EQUIPMENTS);
-          setKits(INITIAL_KITS);
-          setClients(INITIAL_CLIENTS);
-          setProjects(INITIAL_PROJECTS);
-          setShoots(INITIAL_SHOOTS);
-        } else {
-          setEquipments(INITIAL_EQUIPMENTS);
-          setKits(INITIAL_KITS);
-          setClients([]);
-          setProjects([]);
-          setShoots([]);
-        }
+        setEquipments(INITIAL_EQUIPMENTS);
+        setKits(INITIAL_KITS);
+        setClients([]);
+        setProjects([]);
+        setShoots([]);
       }
     } catch (e) {
       console.error('Erro ao carregar workspace:', e);

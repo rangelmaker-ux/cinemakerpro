@@ -81,7 +81,7 @@ export default function GravacoesPage() {
               <div className="flex items-start justify-between gap-2 mb-2">
                 <div>
                   <h3 className="font-bold text-sm text-white">
-                    Gravação Institucional — DF Móveis
+                    Gravação Agendada
                   </h3>
                   <p className="text-[11px] text-slate-400">
                     {formatDate(shoot.scheduled_at)}
@@ -100,18 +100,16 @@ export default function GravacoesPage() {
                   </div>
                 )}
                 <div className="flex items-center gap-1.5 text-slate-400">
-                  <Briefcase className="w-3.5 h-3.5 text-slate-500 shrink-0" />
-                  <span>Kit: {kit?.name || 'Kit Padrão'}</span>
+                  <Clock className="w-3.5 h-3.5 text-slate-500 shrink-0" />
+                  <span>Duração: {shoot.estimated_duration_min} min</span>
                 </div>
               </div>
 
-              {/* Barra de Checklist */}
-              <div className="bg-surface-raised rounded-xl p-2.5 mb-3 border border-surface-border/60">
-                <div className="flex items-center justify-between text-[10px] font-bold mb-1.5">
-                  <span className="text-slate-400 uppercase tracking-wider">
-                    Preparação do Set
-                  </span>
-                  <span className="text-emerald-400">{progress}% pronto</span>
+              {/* Barra de Progresso do Checklist */}
+              <div className="mb-3">
+                <div className="flex justify-between text-[11px] font-semibold mb-1">
+                  <span className="text-slate-400">Preparação (Checklist)</span>
+                  <span className="text-brand-light font-mono">{progress}%</span>
                 </div>
                 <div className="w-full bg-surface h-1.5 rounded-full overflow-hidden">
                   <div
@@ -132,6 +130,26 @@ export default function GravacoesPage() {
           );
         })}
       </div>
+
+      {filteredShoots.length === 0 && (
+        <div className="text-center py-16 bg-[#111318] border border-white/[0.08] rounded-3xl p-8 max-w-md mx-auto space-y-3">
+          <div className="w-12 h-12 rounded-2xl bg-white/[0.04] border border-white/10 flex items-center justify-center mx-auto text-zinc-400">
+            <Video className="w-6 h-6 text-zinc-300" />
+          </div>
+          <div className="space-y-1">
+            <h3 className="text-sm font-semibold text-white">Nenhuma gravação agendada</h3>
+            <p className="text-xs text-zinc-400 max-w-sm mx-auto leading-relaxed">
+              Quando você agendar uma nova diária ou iniciar um plano de set no Diretor Técnico, ele aparecerá aqui.
+            </p>
+          </div>
+          <Link
+            href="/diretor"
+            className="inline-flex items-center gap-2 px-4 py-2 bg-white text-zinc-950 text-xs font-semibold rounded-xl hover:bg-zinc-200 transition-colors"
+          >
+            Abrir Diretor Técnico
+          </Link>
+        </div>
+      )}
     </div>
   );
 }
