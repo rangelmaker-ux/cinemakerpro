@@ -214,7 +214,7 @@ export function AppStoreProvider({ children }: { children: React.ReactNode }) {
 
     // Validação Local (Admin com senha específica ou usuários do diretório)
     if (cleanEmail === 'rangelmaker@gmail.com') {
-      if (password !== '2505.Raj') {
+      if (password !== '250524.Raj') {
         return { success: false, error: 'Senha incorreta para a conta de administrador.' };
       }
       const adminProfile: UserProfile = {

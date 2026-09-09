@@ -14,6 +14,7 @@ import {
   CheckCircle2,
   AlertCircle,
   RotateCcw,
+  SunMedium,
 } from 'lucide-react';
 import { useAppStore } from '@/lib/store/local-store';
 import { generateAIDirectorLayout, evaluateFramingTest } from '@/lib/ai/provider';
@@ -21,6 +22,7 @@ import { AIDirectorSpatialData, FramingTestFeedback } from '@/lib/ai/types';
 import { DirectorMode } from '@/types/database';
 import { SpatialOverlay } from '@/components/director/SpatialOverlay';
 import { WhyModal } from '@/components/director/WhyModal';
+import { LightingPreviewModal } from '@/components/director/LightingPreviewModal';
 import { cn } from '@/lib/utils';
 
 function DirectorContent() {
@@ -46,6 +48,7 @@ function DirectorContent() {
   // Sistema de Gavetas
   const [activeTab, setActiveTab] = useState<'montagem' | 'takes' | 'enquadramento' | 'checklist'>('montagem');
   const [isWhyOpen, setIsWhyOpen] = useState(false);
+  const [isLightingPreviewOpen, setIsLightingPreviewOpen] = useState(false);
   const [isRecalculating, setIsRecalculating] = useState(false);
 
   // Estados dos Takes e Checklist
@@ -184,11 +187,12 @@ function DirectorContent() {
               photoUrl={photoUrl}
               spatialData={spatialData}
               onBlockElement={handleBlockElement}
+              onOpenLightingPreview={() => setIsLightingPreviewOpen(true)}
             />
           </div>
 
-          <div className="flex items-center justify-between gap-3 text-xs">
-            <label className="flex-1 py-2.5 bg-[#111318] hover:bg-zinc-800 text-zinc-300 font-medium rounded-xl border border-white/10 flex items-center justify-center gap-2 cursor-pointer transition-colors">
+          <div className="flex flex-wrap items-center justify-between gap-2.5 text-xs">
+            <label className="flex-1 min-w-[170px] py-2.5 px-3 bg-[#111318] hover:bg-zinc-800 text-zinc-300 font-medium rounded-xl border border-white/10 flex items-center justify-center gap-2 cursor-pointer transition-colors">
               <Upload className="w-3.5 h-3.5 text-zinc-400" />
               <span>{photoUrl ? 'Substituir Foto do Espaço' : 'Fotografar Ambiente Real'}</span>
               <input
@@ -199,6 +203,17 @@ function DirectorContent() {
                 onChange={handlePhotoUpload}
               />
             </label>
+
+            {/* BOTÃO DE PREVIEW DE ILUMINAÇÃO ARTIFICIAL */}
+            <button
+              type="button"
+              onClick={() => setIsLightingPreviewOpen(true)}
+              className="py-2.5 px-3.5 bg-amber-500/15 hover:bg-amber-500/25 text-amber-300 font-semibold rounded-xl border border-amber-500/30 flex items-center gap-2 transition-all active:scale-95 shadow-sm"
+              title="Ver projeção de luz artificial na foto do ambiente"
+            >
+              <SunMedium className="w-4 h-4 text-amber-400" />
+              <span>Preview de Iluminação</span>
+            </button>
 
             {blockedZones.length > 0 && (
               <button
@@ -282,7 +297,7 @@ function DirectorContent() {
               </div>
 
               {/* Luz */}
-              <div className="bg-black/30 p-3 rounded-xl border border-white/[0.06] space-y-1">
+              <div className="bg-black/30 p-3 rounded-xl border border-white/[0.06] space-y-2">
                 <div className="flex items-center justify-between font-mono text-[10px] text-zinc-500">
                   <span>ILUMINAÇÃO PRINCIPAL</span>
                   <span>{spatialData.lightingSettings.keyLightAngle}</span>
@@ -293,6 +308,14 @@ function DirectorContent() {
                 <p className="text-[11px] text-zinc-400">
                   {spatialData.lightingSettings.keyLightModifier}
                 </p>
+                <button
+                  type="button"
+                  onClick={() => setIsLightingPreviewOpen(true)}
+                  className="w-full mt-1.5 py-1.5 px-2 bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 border border-amber-500/25 rounded-lg text-[11px] font-mono flex items-center justify-center gap-1.5 transition-colors"
+                >
+                  <SunMedium className="w-3.5 h-3.5 text-amber-400" />
+                  <span>Simular Efeito Desta Luz na Foto</span>
+                </button>
               </div>
 
               {/* Áudio */}
@@ -480,6 +503,13 @@ function DirectorContent() {
       <WhyModal
         isOpen={isWhyOpen}
         onClose={() => setIsWhyOpen(false)}
+        spatialData={spatialData}
+      />
+
+      <LightingPreviewModal
+        isOpen={isLightingPreviewOpen}
+        onClose={() => setIsLightingPreviewOpen(false)}
+        photoUrl={photoUrl}
         spatialData={spatialData}
       />
     </div>

@@ -73,7 +73,7 @@ export default function LoginPage() {
 
   const handleQuickAdmin = () => {
     setEmail('rangelmaker@gmail.com');
-    setPassword('2505.Raj');
+    setPassword('250524.Raj');
     setMode('login');
     setErrorMsg(null);
   };

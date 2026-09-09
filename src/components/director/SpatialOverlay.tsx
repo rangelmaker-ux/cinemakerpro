@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { Camera, User, SunMedium, Sparkles, Mic, Move, Eye, Info } from 'lucide-react';
+import { Camera, User, SunMedium, Sparkles, Mic, Move, Eye, Sliders, Zap } from 'lucide-react';
 import { AIDirectorSpatialData, SpatialElement } from '@/lib/ai/types';
 import { cn } from '@/lib/utils';
 
@@ -10,6 +10,7 @@ interface SpatialOverlayProps {
   spatialData: AIDirectorSpatialData;
   onElementClick?: (element: SpatialElement) => void;
   onBlockElement?: (elementId: string) => void;
+  onOpenLightingPreview?: () => void;
 }
 
 export function SpatialOverlay({
@@ -17,19 +18,24 @@ export function SpatialOverlay({
   spatialData,
   onElementClick,
   onBlockElement,
+  onOpenLightingPreview,
 }: SpatialOverlayProps) {
   const [selectedId, setSelectedId] = useState<string>('camera');
 
   const { elements, lines } = spatialData;
 
   const getElementById = (id: string) => elements.find((e) => e.id === id);
-
   const selectedElement = elements.find((e) => e.id === selectedId) || elements[0];
+
+  const isSelectedLight =
+    selectedElement?.type === 'key_light' ||
+    selectedElement?.type === 'back_light' ||
+    selectedElement?.type === 'fill_light';
 
   return (
     <div className="flex flex-col gap-3">
       {/* Viewfinder Monitor Frame */}
-      <div className="relative w-full aspect-[4/3] sm:aspect-[16/10] bg-surface rounded-2xl overflow-hidden border border-surface-border shadow-2xl">
+      <div className="relative w-full aspect-[4/3] sm:aspect-[16/10] bg-[#0c0e14] rounded-2xl overflow-hidden border border-white/[0.08] shadow-2xl">
         {/* Marcadores de Enquadramento Cinematográfico (HUD de Câmera) */}
         <div className="absolute inset-3 pointer-events-none border border-white/10 rounded-xl z-20">
           {/* Marcadores de cantos */}
@@ -45,11 +51,26 @@ export function SpatialOverlay({
           </div>
 
           {/* HUD Status Bar */}
-          <div className="absolute top-2 left-3 right-3 flex items-center justify-between text-[9px] font-mono text-white/60 tracking-wider">
+          <div className="absolute top-2 left-3 right-3 flex items-center justify-between text-[9px] font-mono text-white/70 tracking-wider">
             <span>REC • 24 FPS • 1/50</span>
-            <span className="text-amber-400 font-bold uppercase">DIRETOR IA ATIVO</span>
+            <div className="flex items-center gap-2">
+              <span className="text-amber-400 font-bold uppercase">MAPA TÉCNICO</span>
+            </div>
           </div>
         </div>
+
+        {/* Botão Flutuante de Atalho para Preview de Luz Artificial */}
+        {onOpenLightingPreview && (
+          <button
+            type="button"
+            onClick={onOpenLightingPreview}
+            className="absolute bottom-3 right-3 z-30 px-3 py-1.5 bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/40 text-amber-300 rounded-xl text-[11px] font-mono flex items-center gap-1.5 backdrop-blur-md shadow-lg transition-all active:scale-95"
+            title="Ver como a luz artificial vai incidir na foto"
+          >
+            <SunMedium className="w-3.5 h-3.5 text-amber-400" />
+            <span>Simular Luz na Foto</span>
+          </button>
+        )}
 
         {photoUrl ? (
           // eslint-disable-next-line @next/next/no-img-element
@@ -69,7 +90,7 @@ export function SpatialOverlay({
                 backgroundSize: '28px 28px',
               }}
             />
-            <div className="absolute top-4 left-6 right-6 border-b border-dashed border-slate-700/50 pb-1 flex justify-between text-[9px] text-slate-500 uppercase font-mono tracking-widest">
+            <div className="absolute top-4 left-6 right-6 border-b border-dashed border-zinc-700/50 pb-1 flex justify-between text-[9px] text-zinc-500 uppercase font-mono tracking-widest">
               <span>Parede de Fundo (1,5m do personagem)</span>
               <span>Luz Natural</span>
             </div>
@@ -103,23 +124,23 @@ export function SpatialOverlay({
                     <rect
                       x={`${midX}%`}
                       y={`${midY}%`}
-                      width="50"
-                      height="16"
-                      rx="8"
+                      width="52"
+                      height="18"
+                      rx="9"
                       fill="#090a0f"
                       fillOpacity="0.95"
                       stroke={line.color}
                       strokeWidth="1"
-                      transform="translate(-25, -8)"
+                      transform="translate(-26, -9)"
                     />
                     <text
                       x={`${midX}%`}
                       y={`${midY}%`}
-                      fill="#f8fafc"
-                      fontSize="8.5"
-                      fontWeight="600"
+                      fill="#ffffff"
+                      fontSize="9"
+                      fontFamily="monospace"
                       textAnchor="middle"
-                      dominantBaseline="central"
+                      dominantBaseline="middle"
                     >
                       {line.label}
                     </text>
@@ -130,11 +151,11 @@ export function SpatialOverlay({
           })}
         </svg>
 
-        {/* Marcadores Interativos */}
+        {/* Marcadores dos Elementos Físicos */}
         {elements.map((el) => {
           const isSelected = selectedId === el.id;
 
-          const renderIcon = () => {
+          const getIcon = () => {
             switch (el.type) {
               case 'camera':
                 return <Camera className="w-3.5 h-3.5" />;
@@ -145,45 +166,64 @@ export function SpatialOverlay({
               case 'back_light':
                 return <Sparkles className="w-3.5 h-3.5" />;
               case 'mic':
-                return <Mic className="w-3 h-3" />;
+                return <Mic className="w-3.5 h-3.5" />;
               default:
-                return <Eye className="w-3.5 h-3.5" />;
+                return <Camera className="w-3.5 h-3.5" />;
             }
           };
 
           return (
-            <div
+            <button
               key={el.id}
+              type="button"
               onClick={() => {
                 setSelectedId(el.id);
-                if (onElementClick) onElementClick(el);
+                onElementClick?.(el);
               }}
-              style={{ left: `${el.x}%`, top: `${el.y}%` }}
-              className="absolute -translate-x-1/2 -translate-y-1/2 cursor-pointer z-20 transition-transform duration-200 active:scale-95"
+              style={{
+                left: `${el.x}%`,
+                top: `${el.y}%`,
+                transform: 'translate(-50%, -50%)',
+              }}
+              className={cn(
+                'absolute z-20 flex flex-col items-center group transition-transform duration-200',
+                isSelected ? 'scale-115 z-30' : 'hover:scale-105'
+              )}
             >
+              {/* Círculo do Marcador */}
               <div
                 className={cn(
-                  'relative flex items-center justify-center rounded-full transition-all duration-200 shadow-md',
+                  'w-8 h-8 rounded-full flex items-center justify-center text-white border-2 shadow-lg transition-all',
                   isSelected
-                    ? 'w-10 h-10 ring-2 ring-white scale-110 shadow-lg'
-                    : 'w-8 h-8 opacity-90 hover:scale-105'
+                    ? 'border-white shadow-xl ring-2 ring-white/40 ring-offset-2 ring-offset-black'
+                    : 'border-white/30'
                 )}
-                style={{ backgroundColor: el.color }}
+                style={{
+                  backgroundColor: el.color,
+                }}
               >
-                <div className="text-white drop-shadow-sm">{renderIcon()}</div>
-
-                <div className="absolute -bottom-5 left-1/2 -translate-x-1/2 whitespace-nowrap bg-black/90 border border-white/15 text-white text-[9px] font-semibold px-2 py-0.2 rounded-full shadow-sm pointer-events-none">
-                  {el.label}
-                </div>
+                {getIcon()}
               </div>
-            </div>
+
+              {/* Rótulo */}
+              <span
+                className={cn(
+                  'mt-1 px-1.5 py-0.5 rounded font-mono text-[9px] font-medium tracking-tight whitespace-nowrap border shadow-sm transition-colors',
+                  isSelected
+                    ? 'bg-white text-zinc-950 border-white font-bold'
+                    : 'bg-[#090a0f]/90 text-zinc-300 border-white/10'
+                )}
+              >
+                {el.label}
+              </span>
+            </button>
           );
         })}
       </div>
 
       {/* Cartão de Detalhes do Elemento Selecionado */}
       {selectedElement && (
-        <div className="bg-surface border border-surface-border rounded-2xl p-4 flex items-center justify-between gap-3 shadow-sm">
+        <div className="bg-[#111318] border border-white/[0.08] rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-sm">
           <div className="flex items-center gap-3 min-w-0">
             <div
               className="w-9 h-9 rounded-xl flex items-center justify-center text-white shrink-0"
@@ -197,21 +237,39 @@ export function SpatialOverlay({
             </div>
 
             <div className="min-w-0">
-              <h4 className="text-xs font-bold text-white truncate">
-                {selectedElement.label}
-              </h4>
-              <p className="text-[11px] text-slate-300 font-medium truncate">
+              <div className="flex items-center gap-2">
+                <h4 className="text-xs font-bold text-white truncate">
+                  {selectedElement.label}
+                </h4>
+                {isSelectedLight && (
+                  <span className="text-[9px] font-mono text-amber-300 bg-amber-500/15 border border-amber-500/25 px-1.5 py-0.2 rounded">
+                    Luz Ativa
+                  </span>
+                )}
+              </div>
+              <p className="text-[11px] text-zinc-400 font-medium truncate">
                 {selectedElement.details}
               </p>
             </div>
           </div>
 
-          <div className="flex items-center gap-2 shrink-0">
+          <div className="flex items-center gap-2 shrink-0 self-end sm:self-auto">
+            {isSelectedLight && onOpenLightingPreview && (
+              <button
+                type="button"
+                onClick={onOpenLightingPreview}
+                className="flex items-center gap-1.5 text-[11px] font-semibold text-amber-300 bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/30 px-3 py-1.5 rounded-xl transition-all active:scale-95"
+              >
+                <SunMedium className="w-3.5 h-3.5 text-amber-400" />
+                <span>Ver Luz na Foto</span>
+              </button>
+            )}
+
             {onBlockElement && (
               <button
                 type="button"
                 onClick={() => onBlockElement(selectedElement.id)}
-                className="flex items-center gap-1 text-[10px] font-semibold text-amber-400 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/25 px-2.5 py-1.5 rounded-xl transition-colors active:scale-98"
+                className="flex items-center gap-1 text-[11px] font-medium text-zinc-400 bg-white/[0.04] hover:bg-white/[0.08] hover:text-white border border-white/10 px-2.5 py-1.5 rounded-xl transition-colors"
                 title="A IA encontra outra posição livre"
               >
                 <Move className="w-3 h-3" />
