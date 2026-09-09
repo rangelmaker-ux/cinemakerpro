@@ -153,6 +153,9 @@ export interface ScriptCreatorOutput {
   dialogue_overview: string[];
   cta: string;
   visual_notes: string[];
+  creative_angle?: string;
+  creative_intent?: string;
+  creative_justification?: string;
 }
 
 /**

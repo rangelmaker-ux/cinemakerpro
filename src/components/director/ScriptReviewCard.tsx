@@ -160,6 +160,24 @@ export function ScriptReviewCard({
         </div>
       </div>
 
+      {/* ESTRATÉGIA E JUSTIFICATIVA CRIATIVA */}
+      {(script.creative_angle || script.creative_justification) && (
+        <div className="bg-purple-500/[0.06] border border-purple-500/25 rounded-xl p-3 space-y-1.5 text-xs">
+          {script.creative_angle && (
+            <div className="flex items-center gap-1.5 text-purple-300 font-mono font-bold text-[11px]">
+              <Sparkles className="w-3.5 h-3.5" />
+              <span>Estratégia Narrativa: {script.creative_angle}</span>
+            </div>
+          )}
+          {script.creative_justification && (
+            <p className="text-zinc-300 text-[11px] leading-relaxed">
+              <span className="text-zinc-400 font-mono font-semibold">Direção Criativa: </span>
+              {script.creative_justification}
+            </p>
+          )}
+        </div>
+      )}
+
       {/* BLOCO 1: GANCHO ANTI-CLICHÊ (0-3s) */}
       <div className="bg-purple-500/[0.04] border border-purple-500/20 rounded-xl p-3.5 space-y-2">
         <div className="flex items-center justify-between">

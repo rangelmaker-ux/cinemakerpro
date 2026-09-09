@@ -294,22 +294,21 @@ function DirectorContent() {
         return;
       }
 
-      // CASO 4: PRIMEIRO CONTATO (ESTÁGIO IDLE) — DIÁLOGO CONVERSACIONAL ANTES DO ROTEIRO
-      if (stage === 'idle' && !currentScript && !analysis.wantsImmediateGeneration) {
+      // CASO 4: PRIMEIRO CONTATO (ESTÁGIO IDLE) — APRESENTAÇÃO DOS 3 ÂNGULOS ESTRATÉGICOS (OPÇÃO A)
+      if (stage === 'idle' && !currentScript && !analysis.wantsImmediateGeneration && !analysis.selectedAngle) {
         const clarifyMsg: ChatMessage = {
           id: `msg-${Date.now() + 1}`,
           sender: 'criador_roteiro',
           senderTitle: 'Criador de Roteiro',
-          text: `Entendi perfeitamente! Uma produção para ${analysis.brief.client} sobre "${analysis.brief.topic}", estimada em ${analysis.brief.duration_seconds}s.\n\nPara eu calibrar a narrativa e o tom exato antes de escrever:\n1. Quem vai falar para a câmera — você mesmo ou prefere apenas cortes com voz em off?\n2. O foco principal é atrair novos clientes imediatos ou ensinar/posicionar autoridade?`,
+          text:
+            analysis.clarificationText ||
+            `Para a sua produção, identifiquei três caminhos estratégicos com alta retenção e agendamento.\n\nQual abordagem faz mais sentido para o seu cliente, ou prefere que eu faça a escolha profissional e gere direto?`,
           timestamp: new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
           stage: 'clarification',
           brief: analysis.brief,
-          suggestedActions: [
-            { label: '🎙️ Responder por Áudio', action: 'start_audio', variant: 'primary' },
-            { label: 'Eu falo para a câmera', action: 'send:Eu mesmo vou falar diretamente para a câmera' },
-            { label: 'Voz em off (sem aparecer)', action: 'send:Apenas cortes de cena com voz em off, sem rosto' },
-            { label: 'Atrair clientes novos', action: 'send:Foco total em atrair clientes novos e gerar agendamentos' },
-            { label: '🎯 Pode gerar o roteiro com o que tem!', action: 'send:Pode gerar o roteiro com o que tem!' },
+          suggestedActions: analysis.suggestedActions || [
+            { label: '🎯 Fazer a escolha profissional e gerar direto', action: 'send:Pode fazer a escolha profissional e gerar o roteiro direto!', variant: 'primary' },
+            { label: '🎙️ Responder por Áudio', action: 'start_audio' },
           ],
         };
         const nextMsgs = [...updatedMessages, clarifyMsg];
@@ -327,17 +326,20 @@ function DirectorContent() {
         return;
       }
 
-      // CASO 5: CONTEXTO ESTABELECIDO OU PEDIDO EXPLÍCITO -> CRIADOR DE ROTEIRO GERA NARRATIVA
-      const newScript = generateNarrativeScript(analysis.brief, false);
+      // CASO 5: CONTEXTO ESTABELECIDO OU ESCOLHA PROFISSIONAL -> CRIADOR DE ROTEIRO GERA NARRATIVA REAL (OPÇÃO B)
+      const newScript = generateNarrativeScript(analysis.brief, false, analysis.selectedAngle);
       setCurrentScript(newScript);
       setIsScriptApproved(false);
       setStage('script_review');
+
+      const strategyHeader = newScript.creative_angle ? `💡 **Estratégia Escolhida: ${newScript.creative_angle}**\n\n` : '';
+      const justificationBody = newScript.creative_justification ? `*Por que essa direção:* ${newScript.creative_justification}\n\n` : '';
 
       const scriptResponse: ChatMessage = {
         id: `msg-${Date.now() + 1}`,
         sender: 'criador_roteiro',
         senderTitle: 'Criador de Roteiro',
-        text: `Perfeito! Com esse contexto alinhado, estruturei o roteiro narrativo abaixo com gancho de retenção nos primeiros 3 segundos, desenvolvimento prático e chamada para ação objetiva.\n\nDá uma olhada com calma. Você pode aprovar direto, pedir para regenerar com outra pegada, ou editar qualquer linha:`,
+        text: `${strategyHeader}${justificationBody}Estruturei o roteiro narrativo abaixo com gancho de retenção nos primeiros 3 segundos, diálogos naturais em português falado (sem jargões ou clichês publicitários), e chamada para ação objetiva.\n\nDá uma olhada com calma. Você pode aprovar direto, pedir para calibrar o gancho/tom, ou editar qualquer linha:`,
         timestamp: new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
         stage: 'script_review',
         script: newScript,
@@ -419,7 +421,7 @@ function DirectorContent() {
         id: `msg-${Date.now()}`,
         sender: 'criador_roteiro',
         senderTitle: 'Criador de Roteiro',
-        text: `Criei uma proposta de narrativa alternativa com um novo ângulo de abordagem. Confira o novo gancho e as cenas abaixo:`,
+        text: `💡 **Nova Abordagem: ${alternativeScript.creative_angle || 'Ângulo Alternativo'}**\n\n${alternativeScript.creative_justification ? `*Por que essa direção:* ${alternativeScript.creative_justification}\n\n` : ''}Criei uma proposta de narrativa alternativa com um novo ângulo de abordagem estratégica. Confira o novo gancho e as cenas abaixo:`,
         timestamp: new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
         stage: 'script_review',
         script: alternativeScript,
