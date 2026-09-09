@@ -7,14 +7,10 @@ import {
   Crosshair,
   Sliders,
   HelpCircle,
-  Move,
-  CheckSquare,
   Film,
-  Upload,
   Camera,
   CheckCircle2,
   AlertCircle,
-  RotateCcw,
   SunMedium,
   Layers,
   Sparkles,
@@ -29,6 +25,7 @@ import {
   Settings,
   Lock,
   ArrowRight,
+  Compass,
 } from 'lucide-react';
 import { useAppStore } from '@/lib/store/local-store';
 import {
@@ -42,11 +39,11 @@ import {
   CreativeBrief,
 } from '@/lib/ai/conversational-engine';
 import { GeneralDirectorOutput, ScriptCreatorOutput, SharedProjectContext } from '@/lib/ai/team-types';
-import { AIDirectorSpatialData, SpatialElement, VectorLine } from '@/lib/ai/types';
+import { CustomLightingSetup } from '@/lib/ai/lighting-3d-types';
+import { generate3DLightingFromKit } from '@/lib/ai/lighting-presets';
 import { DirectorMode, VideoType } from '@/types/database';
-import { SpatialOverlay } from '@/components/director/SpatialOverlay';
+import { Studio3DLightingMap } from '@/components/director/Studio3DLightingMap';
 import { WhyModal } from '@/components/director/WhyModal';
-import { LightingPreviewModal } from '@/components/director/LightingPreviewModal';
 import { VoiceInput } from '@/components/director/VoiceInput';
 import { ScriptReviewCard } from '@/components/director/ScriptReviewCard';
 import { cn } from '@/lib/utils';
@@ -65,8 +62,6 @@ function DirectorContent() {
   // Modos de direção
   const [mode, setMode] = useState<DirectorMode>(isQuick ? 'rapido' : 'recomendado');
   const [videoType, setVideoType] = useState<VideoType>(activeProject?.video_type || 'institucional');
-  const [photoUrl, setPhotoUrl] = useState<string | null>(null);
-  const [blockedZones, setBlockedZones] = useState<{ id: string; x: number; y: number }[]>([]);
 
   // 1. ESTADOS DA MÁQUINA DE ESTADOS CONVERSACIONAL (IDLE POR PADRÃO, ZERO PRÉ-CARREGAMENTO)
   const [stage, setStage] = useState<AIProductionStage>('idle');
@@ -74,6 +69,7 @@ function DirectorContent() {
   const [currentScript, setCurrentScript] = useState<ScriptCreatorOutput | null>(null);
   const [isScriptApproved, setIsScriptApproved] = useState(false);
   const [teamOutput, setTeamOutput] = useState<GeneralDirectorOutput | null>(null);
+  const [custom3DSetup, setCustom3DSetup] = useState<CustomLightingSetup | null>(null);
   const [isThinking, setIsThinking] = useState(false);
   const [teamVersion, setTeamVersion] = useState(1);
 
@@ -83,10 +79,9 @@ function DirectorContent() {
     return initial.messages;
   });
 
-  // Gaveta ativa: Conversa/Roteiro, Diretor Geral, Cena, Foto, Takes
+  // Gaveta ativa: Conversar/Roteiro, Diretor Geral, Cena, Foto, Takes
   const [activeTab, setActiveTab] = useState<'conversar' | 'diretor_geral' | 'cena' | 'fotografia' | 'takes'>('conversar');
   const [isWhyOpen, setIsWhyOpen] = useState(false);
-  const [isLightingPreviewOpen, setIsLightingPreviewOpen] = useState(false);
 
   // Takes concluídos e checklist
   const [doneTakes, setDoneTakes] = useState<number[]>([]);
@@ -140,7 +135,7 @@ function DirectorContent() {
       format: currentBrief?.format || '9:16',
       duration: currentBrief ? `${currentBrief.duration_seconds}s` : '30s',
       environment: {
-        photoUrl: photoUrl,
+        photoUrl: null,
         type: 'interno',
         ambientLight: 'Luz natural de janela mista',
         wallDistanceMeters: 1.5,
@@ -151,192 +146,27 @@ function DirectorContent() {
       audio: userAudio,
       style: mode === 'criativo' ? 'cinematografico' : 'comercial',
       constraints: {
-        blockedZones: blockedZones,
+        blockedZones: [],
         roomSize: 'medio',
         singleLightOnly: userLights.length <= 1,
       },
       user_preferences: {
-        preferredAngle: blockedZones.some((b) => b.x < 40) ? '45_right' : '45_left',
+        preferredAngle: '45_left',
       },
     };
-  }, [selectedClient, activeProject, equipments, videoType, mode, photoUrl, blockedZones, currentBrief]);
+  }, [selectedClient, activeProject, equipments, videoType, mode, currentBrief]);
 
   // Recalcular downstream caso parâmetros mudem após aprovação
   useEffect(() => {
     if (isScriptApproved && currentScript) {
       const output = activateDownstreamAgents(sharedContext, currentScript);
       setTeamOutput(output);
+      if (!custom3DSetup) {
+        const initial3D = generate3DLightingFromKit(sharedContext, currentScript.scenes[0]?.sceneName || 'Cena 01');
+        setCustom3DSetup(initial3D);
+      }
     }
   }, [sharedContext, isScriptApproved, currentScript]);
-
-  // Converte a saída da equipe de IA para o formato do Viewfinder e SVG
-  const spatialData = useMemo<AIDirectorSpatialData>(() => {
-    if (!teamOutput || !isScriptApproved) {
-      // Estado de espera: guia visual limpo sem poluentes
-      return {
-        elements: [],
-        lines: [],
-        cameraSettings: {
-          lensName: equipments.find((e) => e.category === 'lens')?.model || 'Lente 35mm',
-          focalLength: '35mm',
-          aperture: 'f/2.8',
-          height: '1.45m',
-          framing: 'Aguardando aprovação do roteiro',
-          shotType: 'Plano Médio',
-        },
-        lightingSettings: {
-          keyLightAngle: '45°',
-          keyLightHeight: '1.80m',
-          keyLightModifier: 'Softbox Difusor',
-          backLightNotes: 'Recuo de 1,5m da parede de fundo',
-        },
-        audioSettings: {
-          micType: 'Lapela Sem Fio',
-          position: '15cm da boca',
-          cautions: 'Fixar cabo sob a camisa',
-        },
-        subjectSettings: {
-          distanceFromWall: '1,5m de recuo da parede',
-          orientation: 'Corpo 20° virado para a luz principal',
-        },
-        avoids: ['Aguardando roteiro aprovado pelo usuário'],
-        whyExplanation: 'O Diretor de Cena e o Fotógrafo calcularão os enquadramentos e a luz perfeitos assim que o roteiro for aprovado.',
-        takesPlan: [],
-      };
-    }
-
-    const vd = teamOutput.visual_direction_data;
-    const isLeft = vd.lighting.key.side === 'left';
-
-    const elements: SpatialElement[] = [
-      {
-        id: 'subject',
-        type: 'subject',
-        label: 'Personagem (1,5m da parede)',
-        x: teamOutput.scene_direction.subject_position.spatial_x_pct,
-        y: teamOutput.scene_direction.subject_position.spatial_y_pct,
-        facingAngle: 180,
-        distanceLabel: '1,5 m de recuo da parede de fundo',
-        heightLabel: 'Linha dos olhos',
-        details: vd.subject.body_orientation,
-        icon: 'User',
-        color: '#8b5cf6',
-      },
-      {
-        id: 'camera',
-        type: 'camera',
-        label: `Câmera: ${vd.lens.model}`,
-        x: 50,
-        y: mode === 'rapido' ? 74 : 78,
-        distanceLabel: `${vd.camera.distance_m}m do personagem`,
-        heightLabel: `${vd.camera.height_m}m (altura dos olhos)`,
-        details: `Lente ${vd.lens.focal_length_mm}mm • ${vd.lens.recommended_aperture} • ${vd.lens.shutter_speed}`,
-        icon: 'Camera',
-        color: '#3b82f6',
-      },
-      {
-        id: 'key_light',
-        type: 'key_light',
-        label: `Luz Principal 45° (${vd.lighting.key.modifier})`,
-        x: isLeft ? 28 : 72,
-        y: 54,
-        distanceLabel: '1,35m da pessoa • 1,5m da parede',
-        heightLabel: vd.lighting.key.height,
-        details: `${vd.lighting.key.color_temp} • ${vd.lighting.key.intensity_pct}% intensidade`,
-        icon: 'SunMedium',
-        color: '#f59e0b',
-      },
-      {
-        id: 'back_light',
-        type: 'back_light',
-        label: 'Contra-luz (Recorte a 1,5m da parede)',
-        x: isLeft ? 74 : 26,
-        y: 32,
-        distanceLabel: '1,5m da parede de fundo',
-        heightLabel: '1,70m de altura',
-        details: 'Desenha os ombros e separa o cabelo do fundo escuro',
-        icon: 'Sparkles',
-        color: '#06b6d4',
-      },
-      {
-        id: 'mic',
-        type: 'mic',
-        label: vd.audio.mic_model,
-        x: 50,
-        y: teamOutput.scene_direction.subject_position.spatial_y_pct + 5,
-        distanceLabel: '15cm da boca (esterno)',
-        heightLabel: 'No peito sem atrito',
-        details: vd.audio.recommendation,
-        icon: 'Mic',
-        color: '#10b981',
-      },
-    ];
-
-    const lines: VectorLine[] = [
-      {
-        fromId: 'camera',
-        toId: 'subject',
-        type: 'sight',
-        label: `${vd.camera.distance_m}m POV`,
-        color: '#3b82f6',
-        dashed: false,
-      },
-      {
-        fromId: 'key_light',
-        toId: 'subject',
-        type: 'light_beam',
-        label: 'Feixe 45° Suave',
-        color: '#f59e0b',
-        dashed: true,
-      },
-      {
-        fromId: 'back_light',
-        toId: 'subject',
-        type: 'light_beam',
-        label: 'Recorte 135°',
-        color: '#06b6d4',
-        dashed: true,
-      },
-    ];
-
-    return {
-      elements,
-      lines,
-      cameraSettings: {
-        lensName: vd.lens.model,
-        focalLength: `${vd.lens.focal_length_mm}mm`,
-        aperture: vd.lens.recommended_aperture,
-        height: `${vd.camera.height_m}m (linha dos olhos)`,
-        framing: vd.camera.framing,
-        shotType: vd.camera.shot_type,
-      },
-      lightingSettings: {
-        keyLightAngle: `${vd.lighting.key.angle_deg}° (${vd.lighting.key.side === 'left' ? 'Esquerda' : 'Direita'})`,
-        keyLightHeight: vd.lighting.key.height,
-        keyLightModifier: vd.lighting.key.modifier,
-        backLightNotes: 'Recuo de 1,5m da parede de fundo para desenho de contorno.',
-      },
-      audioSettings: {
-        micType: vd.audio.mic_model,
-        position: vd.audio.position,
-        cautions: vd.audio.recommendation,
-      },
-      subjectSettings: {
-        distanceFromWall: '1,5 m de recuo da parede de fundo',
-        orientation: vd.subject.body_orientation,
-      },
-      avoids: teamOutput.warnings,
-      whyExplanation: teamOutput.creative_direction.executive_summary,
-      takesPlan: teamOutput.takes.map((t) => ({
-        sceneNumber: t.sceneNumber,
-        title: t.title,
-        framing: t.framing,
-        movement: t.cameraMovement,
-        durationSec: t.durationSec,
-        description: t.description,
-      })),
-    };
-  }, [teamOutput, isScriptApproved, equipments, mode]);
 
   // ENVIAR MENSAGEM (TEXTO OU ÁUDIO FALADO PELO USUÁRIO)
   const handleSendMessage = (text: string, isAudio: boolean = false) => {
@@ -407,7 +237,7 @@ function DirectorContent() {
         id: `msg-${Date.now() + 1}`,
         sender: 'diretor_geral',
         senderTitle: 'Diretor Geral',
-        text: `Entendi perfeitamente! Vídeo de ${analysis.brief.duration_seconds}s para ${analysis.brief.client} focado em "${analysis.brief.topic}", gravado no formato ${analysis.brief.format} para ${analysis.brief.platform}. O Criador de Roteiro estruturou a narrativa abaixo. Revise, edite se desejar ou aprove para liberarmos os enquadramentos:`,
+        text: `Entendi perfeitamente! Vídeo de ${analysis.brief.duration_seconds}s para ${analysis.brief.client} focado em "${analysis.brief.topic}", gravado no formato ${analysis.brief.format} para ${analysis.brief.platform}. O Criador de Roteiro estruturou a narrativa abaixo. Revise, edite se desejar ou aprove para liberarmos o Mapa 3D do Estúdio:`,
         timestamp: new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
         stage: 'script_review',
         script: newScript,
@@ -420,7 +250,7 @@ function DirectorContent() {
     }, 350);
   };
 
-  // APROVAR ROTEIRO (DESBLOQUEIA DIRETORES DE CENA, FOTO, VIEW FINDER E TAKES)
+  // APROVAR ROTEIRO (DESBLOQUEIA DIRETORES DE CENA, FOTO, MAPA 3D E TAKES)
   const handleApproveScript = () => {
     if (!currentScript) return;
 
@@ -431,11 +261,18 @@ function DirectorContent() {
     setTeamOutput(output);
     setTeamVersion((v) => v + 1);
 
+    // Gerar iluminação 3D com base no kit real
+    const initial3D = generate3DLightingFromKit(
+      sharedContext,
+      currentScript.scenes[0]?.sceneName || 'Cena 01'
+    );
+    setCustom3DSetup(initial3D);
+
     const approvalMsg: ChatMessage = {
       id: `msg-${Date.now()}`,
       sender: 'diretor_geral',
       senderTitle: 'Diretor Geral',
-      text: `✓ Roteiro aprovado por você! O Diretor de Cena e o Diretor de Fotografia calcularam a posição a 1,5m da parede de fundo, as lentes do seu kit (${output.cinematography_direction.lens.model}) e a luz principal a 45°. O monitor espacial, plano de takes e checklist estão 100% liberados!`,
+      text: `✓ Roteiro aprovado por você! O Diretor de Cena e o Diretor de Fotografia calcularam a posição do sujeito a 1,5m da parede de fundo, as lentes do seu kit (${output.cinematography_direction.lens.model}) e a luz principal a 45°. O Mapa 3D de Iluminação, Visão da Câmera e o plano de takes estão 100% liberados!`,
       timestamp: new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
       stage: 'production_ready',
     };
@@ -510,23 +347,6 @@ function DirectorContent() {
     setMessages((prev) => [...prev, editMsg]);
   };
 
-  const handlePhotoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      setPhotoUrl(URL.createObjectURL(file));
-    }
-  };
-
-  const handleBlockElement = (elementId: string) => {
-    const el = spatialData.elements.find((e) => e.id === elementId);
-    if (!el) return;
-    setBlockedZones((prev) => [...prev, { id: elementId, x: el.x, y: el.y }]);
-  };
-
-  const handleResetBlocked = () => {
-    setBlockedZones([]);
-  };
-
   const toggleTake = (num: number) => {
     setDoneTakes((prev) =>
       prev.includes(num) ? prev.filter((n) => n !== num) : [...prev, num]
@@ -557,7 +377,7 @@ function DirectorContent() {
               </span>
             </div>
             <p className="text-[11px] text-zinc-400 mt-0.5 line-clamp-1">
-              A equipe de IA lê suas lentes e luzes reais para calcular a melhor escolha técnica
+              A equipe de IA lê suas lentes e luzes reais para calcular o mapa 3D de posicionamento
             </p>
           </div>
         </div>
@@ -629,92 +449,28 @@ function DirectorContent() {
         </div>
       </div>
 
-      {/* 3. GRID PRINCIPAL: MONITOR VIEWFINDER (7 cols) + ÁREA CONVERSACIONAL E AGENTES (5 cols) */}
+      {/* 3. GRID PRINCIPAL: MAPA 3D DO ESTÚDIO (7 cols) + ÁREA CONVERSACIONAL E AGENTES (5 cols) */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
-        {/* COLUNA DA ESQUERDA: Viewfinder Monitor & Controles */}
+        {/* COLUNA DA ESQUERDA: MAPA DE ILUMINAÇÃO & POSICIONAMENTO 3D (Substitui o antigo preview de foto) */}
         <div className="lg:col-span-7 space-y-3">
-          <div className="relative">
-            {/* Se o roteiro ainda não foi aprovado, mostra aviso sutil no monitor */}
-            {!isScriptApproved && (
-              <div className="absolute inset-x-3 top-3 z-30 bg-black/85 backdrop-blur-xs border border-amber-500/30 rounded-xl p-3 text-xs text-zinc-300 shadow-xl flex items-center justify-between gap-3 animate-fade-in">
-                <div className="flex items-center gap-2.5">
-                  <div className="w-7 h-7 rounded-lg bg-amber-500/20 text-amber-400 flex items-center justify-center shrink-0">
-                    <Lock className="w-3.5 h-3.5" />
-                  </div>
-                  <div>
-                    <span className="font-bold text-white block text-[11px] font-mono">
-                      MONITOR ESPACIAL AGUARDANDO ROTEIRO
-                    </span>
-                    <p className="text-[10px] text-zinc-400 leading-tight">
-                      Fale sua ideia no chat ao lado. A luz a 45° e os enquadramentos serão traçados após a aprovação do roteiro.
-                    </p>
-                  </div>
-                </div>
+          <Studio3DLightingMap
+            currentSetup={custom3DSetup}
+            isScriptApproved={isScriptApproved}
+            onUpdateSetup={setCustom3DSetup}
+            onOpenChat={() => setActiveTab('conversar')}
+            activeSceneName={currentScript?.scenes[0]?.sceneName || 'Cena 01'}
+          />
 
-                <button
-                  type="button"
-                  onClick={() => setActiveTab('conversar')}
-                  className="py-1 px-2.5 bg-amber-500 text-zinc-950 font-bold text-[10px] rounded-lg shrink-0 hover:bg-amber-400 transition-colors"
-                >
-                  Ir ao Chat
-                </button>
-              </div>
-            )}
-
-            <SpatialOverlay
-              photoUrl={photoUrl}
-              spatialData={spatialData}
-              onBlockElement={handleBlockElement}
-              onOpenLightingPreview={() => setIsLightingPreviewOpen(true)}
-            />
-          </div>
-
-          <div className="flex flex-wrap items-center justify-between gap-2.5 text-xs">
-            <label className="flex-1 min-w-[170px] py-2.5 px-3 bg-[#111318] hover:bg-zinc-800 text-zinc-300 font-medium rounded-xl border border-white/10 flex items-center justify-center gap-2 cursor-pointer transition-colors">
-              <Upload className="w-3.5 h-3.5 text-zinc-400" />
-              <span>{photoUrl ? 'Substituir Foto do Espaço' : 'Fotografar Ambiente Real'}</span>
-              <input
-                type="file"
-                accept="image/*"
-                capture="environment"
-                className="hidden"
-                onChange={handlePhotoUpload}
-              />
-            </label>
-
-            {/* BOTÃO DE PREVIEW DE ILUMINAÇÃO (Apenas quando a foto for enviada) */}
-            {photoUrl ? (
-              <button
-                type="button"
-                onClick={() => setIsLightingPreviewOpen(true)}
-                className="py-2.5 px-4 bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 font-semibold rounded-xl border border-amber-500/40 flex items-center gap-2 transition-all active:scale-95 shadow-lg shadow-amber-500/10 animate-fade-in"
-                title="Gerar preview fotorrealista com IA e profundidade 3D na foto real"
-              >
-                <SunMedium className="w-4 h-4 text-amber-400" />
-                <span>Preview IA (Profundidade Real)</span>
-              </button>
-            ) : (
-              <div className="hidden sm:flex items-center gap-1.5 px-3 py-2 text-[11px] text-zinc-500 font-mono bg-white/[0.02] border border-white/[0.05] rounded-xl">
-                <span>Fotografe o espaço para liberar o Preview 3D</span>
-              </div>
-            )}
-
-            {blockedZones.length > 0 && (
-              <button
-                type="button"
-                onClick={handleResetBlocked}
-                className="py-2.5 px-3 bg-[#111318] hover:bg-zinc-800 text-zinc-400 hover:text-white rounded-xl border border-white/10 flex items-center gap-1.5 transition-colors"
-                title="Restaurar posições originais"
-              >
-                <RotateCcw className="w-3.5 h-3.5" />
-                <span className="hidden sm:inline">Restaurar</span>
-              </button>
-            )}
+          <div className="flex items-center justify-between gap-2.5 text-xs">
+            <div className="flex items-center gap-2 text-[11px] font-mono text-zinc-400">
+              <span className="w-2 h-2 rounded-full bg-emerald-400" />
+              <span>Mapa 3D ativo: medições em metros e graus calculadas para montagem física</span>
+            </div>
 
             <button
               type="button"
               onClick={() => setIsWhyOpen(true)}
-              className="py-2.5 px-3 bg-[#111318] hover:bg-zinc-800 text-zinc-300 hover:text-white font-medium rounded-xl border border-white/10 flex items-center gap-1.5 transition-colors"
+              className="py-2 px-3 bg-[#111318] hover:bg-zinc-800 text-zinc-300 hover:text-white font-medium rounded-xl border border-white/10 flex items-center gap-1.5 transition-colors shrink-0"
             >
               <HelpCircle className="w-3.5 h-3.5 text-zinc-400" />
               <span>Por quê?</span>
@@ -1046,7 +802,7 @@ function DirectorContent() {
                     Diretor de Fotografia Bloqueado
                   </h4>
                   <p className="text-zinc-400 text-xs max-w-sm mx-auto leading-relaxed">
-                    O Fotógrafo selecionará as lentes do seu kit real e montará a iluminação a 45° assim que o roteiro for aprovado.
+                    O Fotógrafo selecionará as lentes do seu kit real e montará o mapa de luz a 45° assim que o roteiro for aprovado.
                   </p>
                   <button
                     type="button"
@@ -1100,14 +856,10 @@ function DirectorContent() {
                       Distância da parede: {teamOutput.cinematography_direction.lighting.key_light.distance_to_wall_m}m (Sombra suave calculada).
                     </p>
 
-                    <button
-                      type="button"
-                      onClick={() => setIsLightingPreviewOpen(true)}
-                      className="w-full mt-2 py-2 px-3 bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 border border-amber-500/25 rounded-xl text-xs font-mono flex items-center justify-center gap-2 transition-colors"
-                    >
-                      <SunMedium className="w-3.5 h-3.5 text-amber-400" />
-                      <span>Ver Simulação 3D Desta Luz na Sua Foto</span>
-                    </button>
+                    <div className="pt-1.5 flex items-center gap-2 text-[11px] font-mono text-emerald-400">
+                      <span className="w-2 h-2 rounded-full bg-emerald-400" />
+                      <span>Posição e feixe visualizados no Mapa 3D ao lado</span>
+                    </div>
                   </div>
                 </>
               )}
@@ -1197,19 +949,40 @@ function DirectorContent() {
         </div>
       </div>
 
-      {/* MODAL DE PREVIEW DA ILUMINAÇÃO */}
-      <LightingPreviewModal
-        isOpen={isLightingPreviewOpen}
-        onClose={() => setIsLightingPreviewOpen(false)}
-        photoUrl={photoUrl}
-        spatialData={spatialData}
-      />
-
       {/* MODAL DE EXPLICAÇÃO TÉCNICA */}
       <WhyModal
         isOpen={isWhyOpen}
         onClose={() => setIsWhyOpen(false)}
-        spatialData={spatialData}
+        spatialData={{
+          elements: [],
+          lines: [],
+          cameraSettings: {
+            lensName: custom3DSetup?.camera.model || 'Lente Principal',
+            focalLength: `${custom3DSetup?.camera.focalLengthMm || 35}mm`,
+            aperture: custom3DSetup?.camera.aperture || 'f/2.8',
+            height: `${custom3DSetup?.camera.heightM || 1.45}m`,
+            framing: custom3DSetup?.camera.framing || 'Plano Médio',
+            shotType: custom3DSetup?.camera.shotType || 'Plano Médio',
+          },
+          lightingSettings: {
+            keyLightAngle: `${custom3DSetup?.lights[0]?.angleDeg || 45}°`,
+            keyLightHeight: `${custom3DSetup?.lights[0]?.heightM || 1.85}m`,
+            keyLightModifier: custom3DSetup?.lights[0]?.modifier || 'Softbox',
+            backLightNotes: `Recuo de ${custom3DSetup?.subject.distanceFromWallM || 1.5}m da parede`,
+          },
+          audioSettings: {
+            micType: custom3DSetup?.audio.model || 'Lapela Sem Fio',
+            position: custom3DSetup?.audio.positionLabel || 'No esterno a 15cm da boca',
+            cautions: 'Fixar cabo sob a camisa',
+          },
+          subjectSettings: {
+            distanceFromWall: `${custom3DSetup?.subject.distanceFromWallM || 1.5}m da parede`,
+            orientation: custom3DSetup?.subject.bodyOrientation || '20° virado para a luz',
+          },
+          avoids: ['Evitar posicionar o sujeito colado na parede'],
+          whyExplanation: custom3DSetup?.purpose || 'Criar tridimensionalidade e separação visual cinematográfica.',
+          takesPlan: [],
+        }}
       />
     </div>
   );
